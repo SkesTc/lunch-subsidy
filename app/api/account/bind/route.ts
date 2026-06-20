@@ -17,6 +17,23 @@ export async function POST(req: Request) {
     .from('schools').select('id').eq('code', schoolCode).single()
   if (!schoolRow) return NextResponse.json({ error: '資料庫查無此校' }, { status: 400 })
 
+  // 檢查此學校是否已有其他非管理員帳號綁定
+  const { data: taken } = await supabaseAdmin
+    .from('user_profiles')
+    .select('email')
+    .eq('school_id', schoolRow.id)
+    .neq('email', session.user.email)
+    .eq('is_admin', false)
+    .limit(1)
+
+  const takenBy = taken?.[0] ?? null
+  if (takenBy) {
+    return NextResponse.json({
+      error: `此學校已由 ${takenBy.email} 完成綁定，如需變更請聯絡承辦學校解除原綁定後再重試。`,
+      existingEmail: takenBy.email,
+    }, { status: 409 })
+  }
+
   await supabaseAdmin
     .from('user_profiles')
     .update({ school_id: schoolRow.id })

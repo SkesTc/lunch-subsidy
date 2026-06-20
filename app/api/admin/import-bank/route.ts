@@ -1,9 +1,43 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { getActiveSchoolYear } from '@/lib/schoolYear'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 
-// Excel 欄位：編號, 學校名稱, 銀行名稱, 分行名稱, 金融機構代碼, 帳戶戶名, 帳號, 聯絡人, 聯絡電話
+export async function GET() {
+  const session = await auth()
+  if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
+
+  const { data: schools } = await supabaseAdmin
+    .from('schools').select('code, name, district').eq('is_active', true).order('code')
+
+  const rows = (schools || []).map((s: { code: number; name: string; district: string }) => ({
+    '編號': s.code,
+    '區別': s.district,
+    '學校名稱': s.name,
+    '銀行名稱': '',
+    '分行名稱': '',
+    '金融機構代碼': '',
+    '帳戶戶名': '',
+    '帳號': '',
+    '聯絡人': '',
+    '聯絡電話': '',
+  }))
+
+  const wb = XLSX.utils.book_new()
+  const ws = XLSX.utils.json_to_sheet(rows)
+  ws['!cols'] = [8, 8, 20, 12, 12, 10, 14, 16, 8, 12].map(w => ({ wch: w }))
+  XLSX.utils.book_append_sheet(wb, ws, '帳戶資料')
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
+
+  return new Response(buf, {
+    headers: {
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="bank_template.xlsx"',
+    },
+  })
+}
+
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
@@ -12,6 +46,8 @@ export async function POST(req: Request) {
   const file = fd.get('file') as File
   const semester = Number(fd.get('semester'))
   if (!file) return NextResponse.json({ error: '無檔案' }, { status: 400 })
+
+  const schoolYear = await getActiveSchoolYear()
 
   const bytes = await file.arrayBuffer()
   const wb = XLSX.read(bytes, { type: 'buffer' })
@@ -27,9 +63,10 @@ export async function POST(req: Request) {
       .from('schools').select('id').eq('code', code).single()
     if (!school) continue
 
-    await supabaseAdmin.from('bank_accounts').upsert({
+    const payload = {
       school_id: school.id,
       semester,
+      school_year: schoolYear,
       bank_name: row['銀行名稱'] || '',
       branch_name: row['分行名稱'] || '',
       bank_code: row['金融機構代碼'] || '',
@@ -40,7 +77,17 @@ export async function POST(req: Request) {
       is_preloaded: true,
       is_modified: false,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'school_id,semester' })
+    }
+
+    const { data: existing } = await supabaseAdmin
+      .from('bank_accounts').select('id')
+      .eq('school_id', school.id).eq('semester', semester).eq('school_year', schoolYear).single()
+
+    if (existing) {
+      await supabaseAdmin.from('bank_accounts').update(payload).eq('id', existing.id)
+    } else {
+      await supabaseAdmin.from('bank_accounts').insert(payload)
+    }
     imported++
   }
 

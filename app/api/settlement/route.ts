@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { getActiveSchoolYear } from '@/lib/schoolYear'
 import { NextResponse } from 'next/server'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
 
@@ -8,9 +9,10 @@ export async function GET(req: Request) {
   if (!session?.user?.school_id) return NextResponse.json(null)
   const { searchParams } = new URL(req.url)
   const semester = Number(searchParams.get('semester'))
+  const schoolYear = await getActiveSchoolYear()
   const { data } = await supabaseAdmin
     .from('settlements').select('*')
-    .eq('school_id', session.user.school_id).eq('semester', semester).single()
+    .eq('school_id', session.user.school_id).eq('semester', semester).eq('school_year', schoolYear).single()
   return NextResponse.json(data)
 }
 
@@ -20,13 +22,13 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const { semester, personnel_expense, business_expense, equipment_expense } = body
+  const schoolYear = await getActiveSchoolYear()
 
-  // 取得核定金額
-  const { data: school } = await supabaseAdmin
-    .from('schools').select('sem1_amount, sem2_amount').eq('id', session.user.school_id).single()
-  if (!school) return NextResponse.json({ error: '找不到學校' }, { status: 400 })
+  const { data: amountRow } = await supabaseAdmin
+    .from('school_amounts').select('sem1_amount, sem2_amount').eq('school_id', session.user.school_id).eq('school_year', schoolYear).single()
+  if (!amountRow) return NextResponse.json({ error: '找不到核定金額，請聯絡承辦學校' }, { status: 400 })
 
-  const A = semester === 1 ? school.sem1_amount : school.sem2_amount
+  const A = semester === 1 ? amountRow.sem1_amount : amountRow.sem2_amount
   const B = A
   const D = personnel_expense + business_expense + equipment_expense
   const C = calcRatio(B, A)
@@ -36,6 +38,7 @@ export async function POST(req: Request) {
   const payload = {
     school_id: session.user.school_id,
     semester,
+    school_year: schoolYear,
     personnel_expense,
     business_expense,
     equipment_expense,
@@ -43,11 +46,13 @@ export async function POST(req: Request) {
     surplus: E,
     repay_amount: F,
     status: 'downloaded',
+    amount_locked: true,
     updated_at: new Date().toISOString(),
   }
 
   const { data: existing } = await supabaseAdmin
-    .from('settlements').select('id').eq('school_id', session.user.school_id).eq('semester', semester).single()
+    .from('settlements').select('id')
+    .eq('school_id', session.user.school_id).eq('semester', semester).eq('school_year', schoolYear).single()
 
   if (existing) {
     await supabaseAdmin.from('settlements').update(payload).eq('id', existing.id)

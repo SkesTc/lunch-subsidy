@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { getActiveSchoolYear } from '@/lib/schoolYear'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
@@ -7,13 +8,11 @@ export async function GET(req: Request) {
   if (!session?.user?.school_id) return NextResponse.json(null)
   const { searchParams } = new URL(req.url)
   const semester = Number(searchParams.get('semester'))
+  const schoolYear = await getActiveSchoolYear()
 
   const { data } = await supabaseAdmin
-    .from('bank_accounts')
-    .select('*')
-    .eq('school_id', session.user.school_id)
-    .eq('semester', semester)
-    .single()
+    .from('bank_accounts').select('*')
+    .eq('school_id', session.user.school_id).eq('semester', semester).eq('school_year', schoolYear).single()
 
   return NextResponse.json(data)
 }
@@ -26,19 +25,20 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const { semester, bank_name, branch_name, bank_code, account_name, account_number, contact_name, contact_phone } = body
+  const schoolYear = await getActiveSchoolYear()
 
-  // 取得現有資料判斷是否修改
   const { data: existing } = await supabaseAdmin
     .from('bank_accounts').select('*')
-    .eq('school_id', session.user.school_id).eq('semester', semester).single()
+    .eq('school_id', session.user.school_id).eq('semester', semester).eq('school_year', schoolYear).single()
 
-  const isModified = existing?.is_preloaded ? (
-    existing.bank_code !== bank_code || existing.account_number !== account_number
-  ) : false
+  const isModified = existing?.is_preloaded
+    ? (existing.bank_code !== bank_code || existing.account_number !== account_number)
+    : false
 
   const payload = {
     school_id: session.user.school_id,
     semester,
+    school_year: schoolYear,
     bank_name, branch_name, bank_code, account_name, account_number, contact_name, contact_phone,
     confirmed_at: new Date().toISOString(),
     confirmed_by: session.user.email,

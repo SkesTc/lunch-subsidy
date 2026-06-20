@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { validateBankCode } from '@/lib/utils'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
 interface BankForm {
   bank_name: string
@@ -10,14 +11,11 @@ interface BankForm {
   bank_code: string
   account_name: string
   account_number: string
-  contact_name: string
-  contact_phone: string
 }
 
 const empty: BankForm = {
   bank_name: '', branch_name: '', bank_code: '',
   account_name: '', account_number: '',
-  contact_name: '', contact_phone: '',
 }
 
 export default function BankPage() {
@@ -43,8 +41,6 @@ export default function BankPage() {
             bank_code: data.bank_code || '',
             account_name: data.account_name || '',
             account_number: data.account_number || '',
-            contact_name: data.contact_name || '',
-            contact_phone: data.contact_phone || '',
           })
           setIsPreloaded(data.is_preloaded)
           setConfirmedAt(data.confirmed_at)
@@ -76,11 +72,7 @@ export default function BankPage() {
     }
   }
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-gray-500">載入中...</div>
-    </div>
-  )
+  if (loading) return <LoadingSpinner />
 
   const fields: { key: keyof BankForm; label: string; placeholder: string; hint?: string }[] = [
     { key: 'bank_name', label: '銀行名稱', placeholder: '例：臺灣銀行' },
@@ -88,8 +80,6 @@ export default function BankPage() {
     { key: 'bank_code', label: '金融機構代碼', placeholder: '7位數字', hint: '共7碼，例：0040303' },
     { key: 'account_name', label: '帳戶戶名', placeholder: '保管金專戶全銜' },
     { key: 'account_number', label: '帳號', placeholder: '存帳帳號' },
-    { key: 'contact_name', label: '聯絡人姓名', placeholder: '承辦人員姓名' },
-    { key: 'contact_phone', label: '聯絡電話', placeholder: '例：(04)2562-6834 #730' },
   ]
 
   return (

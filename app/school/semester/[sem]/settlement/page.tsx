@@ -2,85 +2,129 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { formatAmount, calcRatio, calcSurplus, calcRepay, semLabel } from '@/lib/utils'
+import { formatAmount, calcRatio, calcSurplus, calcRepay, semLabel, toChineseAmount, parseInputAmount, formatInputDisplay } from '@/lib/utils'
+import LoadingSpinner from '@/components/LoadingSpinner'
 
-interface SchoolInfo {
-  name: string
-  district: string
-  sem1_amount: number
-  sem2_amount: number
-}
+interface SchoolInfo { name: string; district: string; code: number }
+interface AmountInfo { sem1_amount: number; sem2_amount: number }
 
 export default function SettlementPage() {
   const { sem } = useParams<{ sem: string }>()
   const semester = Number(sem) as 1 | 2
   const router = useRouter()
   const [school, setSchool] = useState<SchoolInfo | null>(null)
-  const [personnel, setPersonnel] = useState('')
-  const [business, setBusiness] = useState('')
-  const [equipment, setEquipment] = useState('')
+  const [amountInfo, setAmountInfo] = useState<AmountInfo | null>(null)
+  const [businessRaw, setBusinessRaw] = useState('')
   const [existing, setExisting] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const [schoolYear, setSchoolYear] = useState('115')
+  const [settingPlanName, setSettingPlanName] = useState('')
+  const [isLocked, setIsLocked] = useState(false)
+
+  // 申請修改 modal
+  const [showModifyModal, setShowModifyModal] = useState(false)
+  const [modifyAmount, setModifyAmount] = useState('')
+  const [modifyFocused, setModifyFocused] = useState(false)
+  const [modifyReason, setModifyReason] = useState('')
+  const [modifyError, setModifyError] = useState('')
+  const [modifySubmitting, setModifySubmitting] = useState(false)
+  const [modifyDone, setModifyDone] = useState(false)
 
   useEffect(() => {
     Promise.all([
       fetch('/api/schools/me').then(r => r.json()),
       fetch(`/api/settlement?semester=${semester}`).then(r => r.json()),
-    ]).then(([s, st]) => {
+      fetch('/api/settings/public').then(r => r.json()),
+      fetch(`/api/amounts/me?semester=${semester}`).then(r => r.json()),
+    ]).then(([s, st, cfg, amt]) => {
       setSchool(s)
-      if (st) {
-        setPersonnel(String(st.personnel_expense || ''))
-        setBusiness(String(st.business_expense || ''))
-        setEquipment(String(st.equipment_expense || ''))
-        setExisting(st)
-      }
+      if (st?.business_expense) setBusinessRaw(String(st.business_expense))
+      setExisting(st)
+      setIsLocked(st?.amount_locked === true)
+      if (cfg?.school_year) setSchoolYear(cfg.school_year)
+      if (cfg?.plan_name) setSettingPlanName(cfg.plan_name)
+      if (amt) setAmountInfo(amt)
       setLoading(false)
     })
   }, [semester])
 
-  if (loading || !school) return (
-    <div className="min-h-screen flex items-center justify-center text-gray-400">載入中...</div>
-  )
+  if (loading || !school) return <LoadingSpinner />
 
-  const approvedAmount = semester === 1 ? school.sem1_amount : school.sem2_amount
-  const p = Number(personnel) || 0
-  const b = Number(business) || 0
-  const e = Number(equipment) || 0
-  const D = p + b + e
+  const approvedAmount = semester === 1 ? (amountInfo?.sem1_amount || 0) : (amountInfo?.sem2_amount || 0)
+  const b = parseInputAmount(businessRaw)
+  const D = b
   const A = approvedAmount
-  const B = approvedAmount  // 本例全額補助
+  const B = approvedAmount
   const C = calcRatio(B, A)
   const E = calcSurplus(A, D)
   const F = D > 0 ? calcRepay(E, C) : 0
   const hasSurplus = E > 0
+  const hasSaved = !!existing
 
-  async function handleSaveAndDownload() {
+  function openPdf() {
+    if (!school) return
+    const params = new URLSearchParams({
+      sem: String(semester),
+      schoolName: school.name,
+      schoolCode: String(school.code),
+      schoolYear,
+      A: String(A), B: String(B), C: String(C),
+      D: String(D), E: String(E), F: String(F),
+      b: String(b),
+      ...(settingPlanName ? { planName: settingPlanName } : {}),
+    })
+    window.open(`/settlement-print?${params}`, '_blank')
+  }
+
+  async function handleSave() {
     setSaving(true)
     const res = await fetch('/api/settlement', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        semester,
-        personnel_expense: p,
-        business_expense: b,
-        equipment_expense: e,
-      }),
+      body: JSON.stringify({ semester, personnel_expense: 0, business_expense: b, equipment_expense: 0 }),
     })
     if (res.ok) {
-      const params = new URLSearchParams({
-        sem: String(semester),
-        schoolName: school?.name ?? '',
-        A: String(A), B: String(B), C: String(C),
-        D: String(D), E: String(E), F: String(F),
-        p: String(p), b: String(b), eq: String(e),
-      })
-      window.open(`/settlement-print?${params}`, '_blank')
+      setExisting((prev: any) => ({ ...prev, business_expense: b, amount_locked: true }))
+      setIsLocked(true)
     }
     setSaving(false)
   }
 
-  const inputClass = "w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-right"
+  async function handleDownload() {
+    setDownloading(true)
+    openPdf()
+    setDownloading(false)
+  }
+
+  async function handleModifySubmit() {
+    const amt = parseInputAmount(modifyAmount)
+    if (amt <= 0) { setModifyError('請輸入正確的金額'); return }
+    if (!modifyReason.trim()) { setModifyError('請填寫修改原因'); return }
+    setModifySubmitting(true); setModifyError('')
+    const res = await fetch('/api/settlement/change-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ semester, new_amount: amt, reason: modifyReason }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      setModifyDone(true)
+    } else {
+      setModifyError(data.error || '送出失敗')
+    }
+    setModifySubmitting(false)
+  }
+
+  function closeModal() {
+    setShowModifyModal(false)
+    setModifyAmount('')
+    setModifyReason('')
+    setModifyError('')
+    setModifyDone(false)
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -101,7 +145,10 @@ export default function SettlementPage() {
           <div className="bg-blue-50 rounded-xl p-4 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-blue-700 font-medium">A. 核定計畫金額</span>
-              <span className="font-bold text-blue-800">NT$ {formatAmount(A)}</span>
+              <div className="text-right">
+                <p className="font-bold text-blue-800">NT$ {formatAmount(A)}</p>
+                <p className="text-xs text-blue-500">{toChineseAmount(A)}</p>
+              </div>
             </div>
             <div className="flex justify-between">
               <span className="text-blue-700">B. 核定補助金額</span>
@@ -113,71 +160,186 @@ export default function SettlementPage() {
             </div>
           </div>
 
-          {/* 輸入實支 */}
+          {/* 實支金額區 */}
           <div>
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">D. 實支總額（請填寫各項目）</h2>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">人事費（經常門）</label>
-                <input type="number" min="0" value={personnel}
-                  onChange={e => setPersonnel(e.target.value)}
-                  className={inputClass} placeholder="0" />
+            <h2 className="text-sm font-semibold text-gray-700 mb-3">D. 實支總額</h2>
+
+            {isLocked ? (
+              /* 鎖定狀態 */
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">業務費（經常門）</p>
+                    <p className="text-xl font-bold text-gray-800">NT$ {formatAmount(b)}</p>
+                    {b > 0 && <p className="text-xs text-gray-400 mt-0.5">{toChineseAmount(b)}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m0 0v2m0-2h2m-2 0H10m2-6V7m0 0a2 2 0 100-4 2 2 0 000 4z" />
+                    </svg>
+                    已鎖定
+                  </div>
+                </div>
               </div>
+            ) : (
+              /* 可編輯狀態 */
               <div>
                 <label className="block text-sm text-gray-600 mb-1">業務費（經常門）</label>
-                <input type="number" min="0" value={business}
-                  onChange={e => setBusiness(e.target.value)}
-                  className={inputClass} placeholder="0" />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={focused ? businessRaw : formatInputDisplay(b)}
+                  onChange={e => setBusinessRaw(e.target.value.replace(/[^0-9]/g, ''))}
+                  onFocus={() => setFocused(true)}
+                  onBlur={() => setFocused(false)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-right"
+                  placeholder="0"
+                />
+                {b > 0 && <p className="text-xs text-gray-400 mt-1 text-right">{toChineseAmount(b)}</p>}
               </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">設備及投資（資本門）</label>
-                <input type="number" min="0" value={equipment}
-                  onChange={e => setEquipment(e.target.value)}
-                  className={inputClass} placeholder="0" />
-              </div>
-            </div>
+            )}
           </div>
 
           {/* 自動計算結果 */}
           {D > 0 && (
-            <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm border border-gray-200">
-              <div className="flex justify-between font-semibold">
-                <span>D. 實支總額合計</span>
-                <span>NT$ {formatAmount(D)}</span>
+            <div className="bg-gray-50 rounded-xl p-4 space-y-3 text-sm border border-gray-200">
+              <div>
+                <div className="flex justify-between font-semibold">
+                  <span>D. 實支總額合計</span>
+                  <span>NT$ {formatAmount(D)}</span>
+                </div>
+                <p className="text-xs text-gray-400 text-right mt-0.5">{toChineseAmount(D)}</p>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">E. 計畫結餘款 (A-D)</span>
-                <span className={hasSurplus ? 'text-orange-600 font-medium' : 'text-green-600'}>
-                  NT$ {formatAmount(E)}
-                </span>
+              <div>
+                <div className="flex justify-between">
+                  <span className={hasSurplus ? 'text-orange-600' : 'text-green-600'}>E. 計畫結餘款 (A-D)</span>
+                  <span className={`font-medium ${hasSurplus ? 'text-orange-600' : 'text-green-600'}`}>
+                    NT$ {formatAmount(E)}
+                  </span>
+                </div>
+                {E !== 0 && <p className="text-xs text-gray-400 text-right mt-0.5">{toChineseAmount(Math.abs(E))}</p>}
               </div>
               {hasSurplus && (
-                <div className="flex justify-between">
+                <div className="flex justify-between border-t border-gray-200 pt-2">
                   <span className="text-red-600">F. 應繳回本局 (E×C，無條件進位)</span>
                   <span className="text-red-600 font-bold">NT$ {formatAmount(F)}</span>
                 </div>
               )}
               {semester === 2 && hasSurplus && (
-                <div className="mt-2 pt-2 border-t border-gray-200 text-xs text-orange-600">
+                <div className="text-xs text-orange-600 bg-orange-50 rounded-lg p-2">
                   ⚠ 有賸餘款 NT$ {formatAmount(F)} 需繳回公庫，請完成繳款後上傳送款憑單
                 </div>
               )}
             </div>
           )}
 
-          <button
-            onClick={handleSaveAndDownload}
-            disabled={saving || D === 0}
-            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-medium py-3 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
-          >
-            {saving ? '處理中...' : '儲存並下載經費收支結算表 PDF'}
-          </button>
+          {/* 按鈕區 */}
+          <div className="space-y-3">
+            {!isLocked && (
+              <button
+                onClick={handleSave}
+                disabled={saving || D === 0}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-medium py-3 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
+              >
+                {saving ? '儲存中...' : '儲存'}
+              </button>
+            )}
+
+            <button
+              onClick={handleDownload}
+              disabled={downloading || !hasSaved}
+              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-medium py-3 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
+            >
+              {downloading ? '處理中...' : '下載經費收支結算表 PDF'}
+            </button>
+
+            {isLocked && (
+              <button
+                onClick={() => setShowModifyModal(true)}
+                className="w-full border border-amber-400 text-amber-700 hover:bg-amber-50 font-medium py-2.5 rounded-xl transition-colors cursor-pointer text-sm"
+              >
+                申請修改金額
+              </button>
+            )}
+          </div>
 
           <p className="text-xs text-gray-400 text-center">
-            下載後請列印、蓋章，再至下一步上傳掃描檔
+            下載後請列印、逐級核章，再至下一步上傳掃描檔
           </p>
         </div>
       </div>
+
+      {/* 申請修改 Modal */}
+      {showModifyModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 space-y-4">
+            {modifyDone ? (
+              <div className="text-center space-y-3 py-4">
+                <div className="text-4xl">📨</div>
+                <p className="font-semibold text-gray-800">申請已送出</p>
+                <p className="text-sm text-gray-500">承辦學校審核通過後，您即可重新下載經費收支結算表</p>
+                <button onClick={closeModal}
+                  className="w-full bg-blue-600 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer hover:bg-blue-700">
+                  確定
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold text-gray-800">申請修改金額</h2>
+                  <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 cursor-pointer text-xl leading-none">×</button>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+                  目前金額：<strong>NT$ {formatAmount(b)}</strong>，修改申請需等承辦學校審核通過後生效。
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">修改後的實支金額（元）</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={modifyFocused ? modifyAmount : formatInputDisplay(parseInputAmount(modifyAmount))}
+                      onChange={e => setModifyAmount(e.target.value.replace(/[^0-9]/g, ''))}
+                      onFocus={() => setModifyFocused(true)}
+                      onBlur={() => setModifyFocused(false)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none text-right"
+                      placeholder="請輸入新的金額"
+                    />
+                    {parseInputAmount(modifyAmount) > 0 && (
+                      <p className="text-xs text-gray-400 mt-1 text-right">{toChineseAmount(parseInputAmount(modifyAmount))}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">修改原因 <span className="text-red-500">*</span></label>
+                    <textarea
+                      value={modifyReason}
+                      onChange={e => setModifyReason(e.target.value)}
+                      rows={3}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                      placeholder="請說明修改原因..."
+                    />
+                  </div>
+                </div>
+
+                {modifyError && <p className="text-sm text-red-600">{modifyError}</p>}
+
+                <div className="flex gap-3">
+                  <button onClick={closeModal}
+                    className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm cursor-pointer hover:bg-gray-50">
+                    取消
+                  </button>
+                  <button onClick={handleModifySubmit} disabled={modifySubmitting}
+                    className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer hover:bg-blue-700 disabled:bg-gray-300">
+                    {modifySubmitting ? '送出中...' : '送出申請'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

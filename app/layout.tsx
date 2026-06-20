@@ -1,9 +1,14 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { getSystemSettings } from '@/lib/settings'
 
-export const metadata: Metadata = {
-  title: '台中市第2區免費營養午餐核銷系統',
-  description: '115學年度公立國中小免費營養午餐（山區）第2區核銷資料上傳平台',
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getSystemSettings()
+  const name = settings.system_name || '免費營養午餐核銷系統'
+  return {
+    title: name,
+    description: `${settings.school_year || '115'}學年度 ${name}`,
+  }
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
