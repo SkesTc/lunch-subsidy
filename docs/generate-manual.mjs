@@ -13,6 +13,10 @@ const html = `<!DOCTYPE html>
 <title>學校端使用說明</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap');
+  /* 所有頁面上下各留 10mm，避免列印時頁邊裁切內容 */
+  @page { margin: 10mm 0; }
+  /* 封面與目錄為全版面設計，不需上下邊距 */
+  @page :first { margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Noto Sans TC', 'PingFang TC', sans-serif; font-size: 13px; color: #1e293b; background: white; }
 
@@ -50,7 +54,11 @@ const html = `<!DOCTYPE html>
   .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 2px solid #e2e8f0; }
   .page-step { background: #1e40af; color: white; width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
   .page-title { font-size: 20px; font-weight: 700; color: #1e40af; }
-  .page-footer { margin-top: 20px; display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 10px; }
+  /* CSS counter：封面=1, 目錄=2, 第一個 .page 從 3 開始 */
+  body { counter-reset: pg 2; }
+  .page { counter-increment: pg; }
+  .auto-pg::before { content: counter(pg); }
+  .page-footer { margin-top: 10px; display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 5px; }
 
   /* ── 說明文字 ── */
   .desc { font-size: 12.5px; color: #475569; line-height: 1.8; margin-bottom: 14px; }
@@ -139,9 +147,9 @@ const html = `<!DOCTYPE html>
   .callout::after { content: ''; position: absolute; width: 8px; height: 8px; background: #ef4444; }
 
   /* ── 表格 ── */
-  table.guide { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 12px; break-inside: avoid; page-break-inside: avoid; }
-  table.guide th { background: #1e40af; color: white; padding: 8px 14px; text-align: left; font-weight: 600; }
-  table.guide td { padding: 7px 14px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+  table.guide { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 11.5px; break-inside: avoid; page-break-inside: avoid; }
+  table.guide th { background: #1e40af; color: white; padding: 5px 12px; text-align: left; font-weight: 600; }
+  table.guide td { padding: 5px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
   table.guide tr:nth-child(even) td { background: #f8fafc; }
 
   /* ── 表單模擬 ── */
@@ -276,7 +284,7 @@ const html = `<!DOCTYPE html>
 
   <div class="page-footer">
     <span>臺中市第2區免費營養午餐核銷系統 · 學校端使用說明</span>
-    <span>第 3 頁</span>
+    <span>第 <span class="auto-pg"></span> 頁</span>
   </div>
 </div>
 
@@ -287,7 +295,7 @@ const html = `<!DOCTYPE html>
     <div class="page-title">首頁總覽與各功能說明</div>
   </div>
 
-  <p class="desc">登入後進入學校首頁，頁面分為學校資訊卡與三個作業期間卡。各期間只有承辦端開放後才能操作。</p>
+  <p class="desc">登入後進入學校首頁，頁面分為審核結果通知（有未讀通知時才顯示）、學校資訊卡與三個作業期間卡。各期間只有承辦端開放後才能操作。</p>
 
   <div class="screenshot-wrap">
     <!-- 首頁模擬 -->
@@ -304,6 +312,15 @@ const html = `<!DOCTYPE html>
         </div>
       </div>
       <div class="sim-page">
+        <!-- 審核結果通知（只示範一則） -->
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:8px 10px;margin-bottom:6px;display:flex;align-items:flex-start;gap:6px;">
+          <span style="font-size:13px;flex-shrink:0;">✅</span>
+          <div style="flex:1;">
+            <div style="font-size:10px;font-weight:700;color:#15803d;">第1學期「首次上傳經費收支結算表掃描檔」申請已核准通過</div>
+            <div style="font-size:9px;color:#94a3b8;margin-top:1px;">審核時間：06/21 14:30</div>
+          </div>
+          <span style="font-size:9px;color:#86efac;flex-shrink:0;">✕</span>
+        </div>
         <!-- 學校資訊卡 -->
         <div class="sim-card">
           <div class="sim-school-top">
@@ -379,23 +396,14 @@ const html = `<!DOCTYPE html>
             </div>
           </div>
         </div>
-        <div class="sim-period">
-          <div class="sim-period-header gray">
-            <span>第2學期末</span>
-            <span class="sim-period-deadline">暫未開放</span>
-          </div>
-          <div class="sim-period-body">
-            <div class="sim-disabled-msg">此階段尚未開放，請等待通知</div>
-          </div>
-        </div>
       </div>
     </div>
-    <div class="screenshot-caption">▸ 學校首頁 — 顯示學校基本資訊、核定金額摘要，以及各學期作業期間的進度</div>
+    <div class="screenshot-caption">▸ 學校首頁 — 顯示審核結果通知（✅核准）、學校資訊卡、各學期作業進度</div>
   </div>
 
   <table class="guide">
     <tr><th>區塊</th><th>說明</th></tr>
-    <tr><td>學校資訊卡</td><td>顯示學年度、核定金額、各學期實支與結餘摘要（第2學期若有應繳回則一併顯示），以及承辦人聯絡資訊</td></tr>
+    <tr><td>學校資訊卡</td><td>顯示學年度、核定金額、各學期實支與結餘摘要，以及承辦人聯絡資訊</td></tr>
     <tr><td>第1學期初</td><td>選填 — 帳戶資訊有異動時才需操作</td></tr>
     <tr><td>第1學期末</td><td>必填 — 填寫實支金額、上傳結算表掃描檔</td></tr>
     <tr><td>第2學期末</td><td>必填 — 填寫實支金額、上傳結算表掃描檔、上傳賸餘款送款憑單</td></tr>
@@ -403,7 +411,7 @@ const html = `<!DOCTYPE html>
 
   <div class="page-footer">
     <span>臺中市第2區免費營養午餐核銷系統 · 學校端使用說明</span>
-    <span>第 4 頁</span>
+    <span>第 <span class="auto-pg"></span> 頁</span>
   </div>
 </div>
 
@@ -461,7 +469,7 @@ const html = `<!DOCTYPE html>
 
   <div class="page-footer">
     <span>臺中市第2區免費營養午餐核銷系統 · 學校端使用說明</span>
-    <span>第 5 頁</span>
+    <span>第 <span class="auto-pg"></span> 頁</span>
   </div>
 </div>
 
@@ -538,7 +546,7 @@ const html = `<!DOCTYPE html>
 
   <div class="page-footer">
     <span>臺中市第2區免費營養午餐核銷系統 · 學校端使用說明</span>
-    <span>第 6 頁</span>
+    <span>第 <span class="auto-pg"></span> 頁</span>
   </div>
 </div>
 
@@ -571,70 +579,28 @@ const html = `<!DOCTYPE html>
   </div>
 
   <div class="screenshot-wrap">
-    <div style="background:#f8fafc;padding:12px 16px;">
-      <div style="font-size:10px;color:#64748b;margin-bottom:8px;">← 返回首頁 &nbsp;/&nbsp; 第1學期・填寫實支金額</div>
-      <div style="background:white;border-radius:14px;border:1px solid #e2e8f0;padding:20px 24px;box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-        <div style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:2px;">填寫實支金額</div>
-        <div style="font-size:11px;color:#64748b;margin-bottom:14px;">115學年度第1學期・神岡區社口國民小學</div>
-
-        <!-- A B C block -->
-        <div style="background:#eff6ff;border-radius:10px;padding:12px 16px;margin-bottom:14px;">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;">
-            <span style="font-size:12px;color:#2563eb;font-weight:600;">A. 核定計畫金額</span>
-            <div style="text-align:right;">
-              <div style="font-size:13px;font-weight:700;color:#1d4ed8;">NT$ 6,890,880</div>
-              <div style="font-size:10px;color:#60a5fa;">陸佰捌拾玖萬零捌佰捌拾元</div>
-            </div>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <span style="font-size:12px;color:#2563eb;font-weight:600;">B. 核定補助金額</span>
-            <span style="font-size:13px;font-weight:700;color:#1e293b;">NT$ 6,890,880</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;">
-            <span style="font-size:12px;color:#2563eb;font-weight:600;">C. 補助比率 (B/A)</span>
-            <span style="font-size:13px;font-weight:700;color:#1e293b;">100.00%</span>
-          </div>
+    <div style="background:#f8fafc;padding:8px 12px;">
+      <div style="font-size:10px;color:#64748b;margin-bottom:6px;">← 返回首頁 / 第1學期・填寫實支金額</div>
+      <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;padding:12px 16px;">
+        <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:8px;">填寫實支金額・115學年度第1學期</div>
+        <!-- A B C compact -->
+        <div style="background:#eff6ff;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:11px;">
+          <div style="display:flex;justify-content:space-between;"><span style="color:#2563eb;font-weight:600;">A. 核定計畫金額</span><span style="font-weight:700;color:#1d4ed8;">NT$ 6,890,880</span></div>
+          <div style="display:flex;justify-content:space-between;margin-top:3px;"><span style="color:#2563eb;font-weight:600;">B. 核定補助金額</span><span style="font-weight:700;">NT$ 6,890,880</span></div>
+          <div style="display:flex;justify-content:space-between;margin-top:3px;"><span style="color:#2563eb;font-weight:600;">C. 補助比率 (B/A)</span><span style="font-weight:700;">100.00%</span></div>
         </div>
-
-        <!-- D locked display -->
-        <div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:8px;">D. 實支總額</div>
-        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
-          <div>
-            <div style="font-size:10px;color:#64748b;margin-bottom:2px;">業務費（經常門）</div>
-            <div style="font-size:16px;font-weight:700;color:#1e293b;">NT$ 6,840,000</div>
-            <div style="font-size:10px;color:#94a3b8;margin-top:2px;">陸佰捌拾肆萬元</div>
-          </div>
-          <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#d97706;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:4px 10px;">
-            🔒 已鎖定
-          </div>
+        <!-- D locked -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+          <div><div style="font-size:10px;color:#64748b;">D. 實支總額・業務費（經常門）</div><div style="font-size:14px;font-weight:700;color:#1e293b;">NT$ 6,840,000</div></div>
+          <div style="font-size:10px;color:#d97706;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:3px 8px;">🔒 已鎖定</div>
         </div>
-
-        <!-- D total + E + F -->
-        <div style="background:#f8fafc;border-radius:10px;padding:12px 16px;margin-bottom:14px;">
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
-            <span style="font-size:12px;font-weight:700;color:#1e293b;">D. 實支總額合計</span>
-            <div style="text-align:right;">
-              <div style="font-size:13px;font-weight:700;">NT$ 6,840,000</div>
-              <div style="font-size:10px;color:#94a3b8;">陸佰捌拾肆萬元</div>
-            </div>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;padding-top:8px;">
-            <span style="font-size:12px;color:#ea580c;font-weight:600;">E. 計畫結餘款 (A-D)</span>
-            <div style="text-align:right;">
-              <div style="font-size:13px;font-weight:700;color:#ea580c;">NT$ 50,880</div>
-              <div style="font-size:10px;color:#94a3b8;">伍萬零捌佰捌拾元</div>
-            </div>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding-top:4px;">
-            <span style="font-size:12px;color:#dc2626;font-weight:600;">F. 應繳回本局 (E×C，無條件進位)</span>
-            <span style="font-size:13px;font-weight:700;color:#dc2626;">NT$ 50,880</span>
-          </div>
+        <!-- E F -->
+        <div style="background:#f8fafc;border-radius:8px;padding:8px 12px;margin-bottom:8px;font-size:11px;">
+          <div style="display:flex;justify-content:space-between;"><span style="color:#ea580c;font-weight:600;">E. 計畫結餘款 (A-D)</span><span style="font-weight:700;color:#ea580c;">NT$ 50,880</span></div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;"><span style="color:#dc2626;font-weight:600;">F. 應繳回本局 (E×C，無條件進位)</span><span style="font-weight:700;color:#dc2626;">NT$ 50,880</span></div>
         </div>
-
-        <!-- buttons: download + 申請修改 -->
-        <div style="background:#16a34a;color:white;border-radius:10px;padding:10px;text-align:center;font-size:13px;font-weight:700;margin-bottom:8px;">下載經費收支結算表 PDF</div>
-        <div style="border:1px solid #fbbf24;color:#b45309;border-radius:10px;padding:8px;text-align:center;font-size:12px;font-weight:600;">申請修改金額</div>
-        <div style="font-size:10px;color:#94a3b8;text-align:center;margin-top:8px;">下載後請列印、逐級核章，再至下一步上傳掃描檔</div>
+        <div style="background:#16a34a;color:white;border-radius:8px;padding:8px;text-align:center;font-size:12px;font-weight:700;margin-bottom:6px;">下載經費收支結算表 PDF</div>
+        <div style="border:1px solid #fbbf24;color:#b45309;border-radius:8px;padding:7px;text-align:center;font-size:11px;font-weight:600;">申請修改金額</div>
       </div>
     </div>
     <div class="screenshot-caption">▸ 填寫實支金額頁面（儲存後）— 金額鎖定，可下載 PDF 或提出修改申請</div>
@@ -644,7 +610,7 @@ const html = `<!DOCTYPE html>
 
   <div class="page-footer">
     <span>臺中市第2區免費營養午餐核銷系統 · 學校端使用說明</span>
-    <span>第 7 頁</span>
+    <span>第 <span class="auto-pg"></span> 頁</span>
   </div>
 </div>
 
@@ -655,24 +621,24 @@ const html = `<!DOCTYPE html>
     <div class="page-title">上傳收支結算表掃描檔</div>
   </div>
 
-  <p class="desc">下載結算表後，需列印出來逐級核章，再掃描上傳至系統。承辦學校將下載此份掃描檔作為核銷憑證。</p>
+  <p class="desc">下載結算表後，需列印出來逐級核章，再掃描上傳至系統。上傳後由承辦學校審核，核准後即生效。</p>
 
   <div class="steps">
     <div class="step-item">
       <div class="step-num">1</div>
-      <div class="step-text">將下載的結算表 PDF <strong>列印</strong>出來<strong>逐級核章</strong></div>
+      <div class="step-text">將下載的結算表 PDF <strong>列印</strong>出來<strong>逐級核章</strong>，掃描存成 PDF / JPG / PNG</div>
     </div>
     <div class="step-item">
       <div class="step-num">2</div>
-      <div class="step-text"><strong>掃描</strong>或清晰拍照，存成 <strong>PDF / JPG / PNG</strong></div>
+      <div class="step-text">進入「<strong>上傳經費收支結算表掃描檔</strong>」頁面，選擇檔案後點「<strong>確認上傳</strong>」</div>
     </div>
     <div class="step-item">
       <div class="step-num">3</div>
-      <div class="step-text">進入「<strong>上傳收支結算表掃描檔</strong>」頁面，選擇檔案後點「<strong>確認上傳</strong>」</div>
+      <div class="step-text">頁面顯示「⏳ 待審核中」，首頁步驟也更新為橘黃色沙漏圖示，<strong>請勿重複上傳</strong></div>
     </div>
     <div class="step-item">
       <div class="step-num">4</div>
-      <div class="step-text">首頁步驟顯示「✓ 已上傳」即完成；若需換檔，請點「<strong>申請重新上傳</strong>」</div>
+      <div class="step-text">承辦學校核准後，頁面顯示「<strong>✓ 已核准</strong>」即完成；如需換檔，點「<strong>申請重新上傳</strong>」</div>
     </div>
   </div>
 
@@ -682,27 +648,29 @@ const html = `<!DOCTYPE html>
         <div class="sim-navbar-left">🍱 臺中市第2區免費營養午餐核銷系統 <span class="sim-year-badge">115 學年度</span></div>
         <div class="sim-navbar-right">神岡區社口國民小學</div>
       </div>
-      <div style="background:#f1f5f9;padding:8px 12px;font-size:11px;color:#64748b;">
+      <div style="background:#f1f5f9;padding:6px 12px;font-size:11px;color:#64748b;">
         ← 返回首頁 / 第1學期・上傳結算表掃描檔
       </div>
       <div class="sim-form">
-        <div style="font-size:16px;font-weight:700;color:#1e293b;margin-bottom:4px;">上傳收支結算表掃描檔</div>
-        <div style="font-size:11px;color:#64748b;margin-bottom:10px;">請上傳列印蓋章後的掃描檔（PDF / JPG / PNG）</div>
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px;margin-bottom:10px;">
-          <div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:4px;">✅ 已上傳</div>
+        <div style="font-size:14px;font-weight:700;color:#1e293b;margin-bottom:8px;">上傳經費收支結算表掃描檔</div>
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:8px;margin-bottom:8px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
+            <span style="background:#dcfce7;color:#15803d;font-size:10px;font-weight:700;border-radius:99px;padding:1px 6px;">✓ 已核准</span>
+            <div style="font-size:11px;font-weight:700;color:#1d4ed8;">此學期已上傳掃描檔</div>
+          </div>
           <div style="font-size:11px;color:#2563eb;">📄 開啟已上傳的檔案</div>
         </div>
-        <div style="border:1px solid #fbbf24;color:#b45309;border-radius:10px;padding:8px;text-align:center;font-size:12px;font-weight:600;">申請重新上傳</div>
+        <div style="border:1px solid #fbbf24;color:#b45309;border-radius:8px;padding:7px;text-align:center;font-size:12px;font-weight:600;">申請重新上傳</div>
       </div>
     </div>
-    <div class="screenshot-caption">▸ 上傳結算表掃描檔頁面（已上傳後）— 顯示已上傳狀態；若需換檔請點「申請重新上傳」送審</div>
+    <div class="screenshot-caption">▸ 核准後畫面 — 顯示「✓ 已核准」及檔案連結；若需換檔請點「申請重新上傳」</div>
   </div>
 
-  <div class="warn">⚠️ 請確認掃描檔清晰可辨、蓋章完整。上傳成功後檔案即鎖定；若需更換，請點「申請重新上傳」選擇新檔案並填寫原因，送出後由承辦學校審核，核准後新檔案將自動替換舊檔。</div>
+  <div class="warn">⚠️ 請確認掃描檔清晰可辨、蓋章完整。上傳後勿重複上傳，等待審核即可。若需更換，點「申請重新上傳」填寫原因後送出，由承辦學校審核後自動替換。</div>
 
   <div class="page-footer">
     <span>臺中市第2區免費營養午餐核銷系統 · 學校端使用說明</span>
-    <span>第 8 頁</span>
+    <span>第 <span class="auto-pg"></span> 頁</span>
   </div>
 </div>
 
@@ -734,7 +702,11 @@ const html = `<!DOCTYPE html>
     </div>
     <div class="step-item">
       <div class="step-num">5</div>
-      <div class="step-text">選擇憑單檔案後點「<strong>上傳送款憑單</strong>」完成；若需換檔，請點「<strong>申請重新上傳</strong>」</div>
+      <div class="step-text">選擇憑單檔案後點「<strong>確認上傳送款憑單</strong>」，頁面顯示「⏳ 待審核中」</div>
+    </div>
+    <div class="step-item">
+      <div class="step-num">6</div>
+      <div class="step-text">承辦學校審核通過後，頁面改顯示「<strong>✓ 已核准</strong>」即完成；若需換檔，請點「<strong>申請重新上傳</strong>」</div>
     </div>
   </div>
 
@@ -750,8 +722,16 @@ const html = `<!DOCTYPE html>
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px;margin-bottom:12px;font-size:12px;color:#c2410c;">
           本學期結餘款 <strong>NT$ 48,800</strong>，請繳回公庫後上傳送款憑單
         </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:10px;text-align:center;margin-bottom:8px;">
+          <div style="font-size:16px;margin-bottom:4px;">⏳</div>
+          <div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:2px;">送款憑單待審核中</div>
+          <div style="font-size:10px;color:#92400e;">承辦學校審核通過後即生效</div>
+        </div>
         <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px;margin-bottom:10px;">
-          <div style="font-size:11px;font-weight:700;color:#1d4ed8;margin-bottom:4px;">✅ 已上傳</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span style="background:#dcfce7;color:#15803d;font-size:10px;font-weight:700;border-radius:99px;padding:2px 7px;">✓ 已核准</span>
+            <div style="font-size:11px;font-weight:700;color:#1d4ed8;">已上傳送款憑單</div>
+          </div>
           <div style="font-size:11px;color:#2563eb;">📄 開啟已上傳的憑單</div>
         </div>
         <div style="border:1px solid #fbbf24;color:#b45309;border-radius:10px;padding:8px;text-align:center;font-size:12px;font-weight:600;">申請重新上傳</div>
@@ -764,7 +744,7 @@ const html = `<!DOCTYPE html>
 
   <div class="page-footer">
     <span>臺中市第2區免費營養午餐核銷系統 · 學校端使用說明</span>
-    <span>第 9 頁</span>
+    <span>第 <span class="auto-pg"></span> 頁</span>
   </div>
 </div>
 
@@ -779,7 +759,11 @@ const html = `<!DOCTYPE html>
 
   <div class="badge-row">
     <div class="badge-icon" style="background:#22c55e;color:white;">✓</div>
-    <div class="badge-desc"><strong>綠底白勾</strong> — 此步驟已完成</div>
+    <div class="badge-desc"><strong>綠底白勾</strong> — 此步驟已完成（核准生效）</div>
+  </div>
+  <div class="badge-row">
+    <div class="badge-icon" style="background:#fbbf24;color:white;">⏳</div>
+    <div class="badge-desc"><strong>橘黃底沙漏</strong> — 檔案已上傳，待承辦學校審核中，請勿重複上傳</div>
   </div>
   <div class="badge-row">
     <div class="badge-icon" style="background:#e2e8f0;color:#64748b;">1</div>
@@ -810,22 +794,52 @@ const html = `<!DOCTYPE html>
 
   <div class="qa-item">
     <div class="qa-q">登入後顯示「尚未綁定學校」？</div>
-    <div class="qa-a">請點選「綁定學校」，在下拉選單中選擇您的學校後儲存即可。</div>
+    <div class="qa-a">請點選「綁定學校」，在下拉選單中選擇您的學校後儲存即可。若找不到學校，請聯絡承辦學校確認學校是否已啟用。</div>
+  </div>
+  <div class="qa-item">
+    <div class="qa-q">學校承辦人員更換，如何移交系統操作權限？</div>
+    <div class="qa-a">
+      <strong>方式一（舊承辦人自行操作）：</strong><br>
+      由舊承辦人登入系統，在首頁右上角點「<strong>重新綁定 Gmail</strong>」解除綁定，再由新承辦人以自己的 Gmail 登入並重新綁定學校。<br><br>
+      <strong>方式二（舊承辦人無法操作）：</strong><br>
+      聯絡承辦學校，由管理員在後台「帳號管理 → 各校綁定帳號」找到該學校帳號並點「解綁」，新承辦人再登入完成綁定。<br><br>
+      ⚠️ 移交後，新承辦人請至首頁點「<strong>✏ 編輯聯絡資訊</strong>」更新姓名、職稱與電話。
+    </div>
+  </div>
+  <div class="qa-item">
+    <div class="qa-q">首頁出現綠色或紅色通知橫幅，如何處理？</div>
+    <div class="qa-a">這是承辦學校的審核結果通知。<strong>綠色（✅）</strong>表示申請已核准，檔案或金額已生效，可至對應步驟確認。<strong>紅色（❌）</strong>表示申請未通過，請重新提出申請或聯絡承辦學校了解原因。確認後點右側「<strong>✕</strong>」關閉通知，關閉後不再顯示。</div>
+  </div>
+  <div class="qa-item">
+    <div class="qa-q">上傳檔案後首頁顯示「待審核中，請靜候通知」是什麼意思？</div>
+    <div class="qa-a">這是正常狀態，表示您的檔案已成功上傳，正等待承辦學校確認。審核通過後步驟說明會自動更新為「✓ 已核准」，並會收到 Email 通知。<strong>請勿重複上傳</strong>，若長時間未獲通知，請聯絡承辦學校確認。</div>
+  </div>
+  <div class="qa-item">
+    <div class="qa-q">審核通知信寄到哪裡？沒有收到怎麼辦？</div>
+    <div class="qa-a">通知信寄至您登入系統所使用的 Gmail 帳號。若未收到，請檢查垃圾郵件資料夾，或直接登入系統查看步驟狀態是否已更新為「✓ 已核准」。</div>
   </div>
   <div class="qa-item">
     <div class="qa-q">下載的結算表金額填錯，可以修改嗎？</div>
-    <div class="qa-a">儲存後金額即鎖定。請進入「填寫實支金額」頁面，點「申請修改金額」，填入正確金額與修改原因後送出申請，由承辦學校審核。核准後金額自動更新，您即可重新下載結算表。</div>
+    <div class="qa-a">儲存後金額即鎖定。請進入「填寫實支金額並下載結算表」頁面，點「申請修改金額」，填入正確金額與修改原因後送出申請，由承辦學校審核；核准後金額自動更新，即可重新下載結算表。</div>
   </div>
   <div class="qa-item">
     <div class="qa-q">結算表掃描檔或送款憑單上傳後想要換一份？</div>
     <div class="qa-a">上傳後檔案即鎖定。請進入對應頁面點「申請重新上傳」，選擇新檔案並填寫原因後送出，由承辦學校審核；核准後新檔案將自動替換舊檔。</div>
   </div>
   <div class="qa-item">
+    <div class="qa-q">首頁的核定金額顯示為 0 或找不到？</div>
+    <div class="qa-a">核定金額由承辦學校輸入，若顯示 0 或空白，請聯絡承辦學校確認是否已完成金額設定。</div>
+  </div>
+  <div class="qa-item">
+    <div class="qa-q">每學年需要重新登入或重新綁定學校嗎？</div>
+    <div class="qa-a">不需要。帳號綁定後長期有效，每學年直接登入即可操作。只有在承辦人更換或更換操作 Gmail 時才需要重新綁定。</div>
+  </div>
+  <div class="qa-item">
     <div class="qa-q">帳戶變更申請送出後發現填錯？</div>
     <div class="qa-a">請立即聯絡承辦學校，在審核前可請管理員退回申請，您再重新填寫送出。</div>
   </div>
   <div class="qa-item">
-    <div class="qa-q">期間卡顯示「暫未開放」？</div>
+    <div class="qa-q">期間卡顯示「此階段尚未開放」？</div>
     <div class="qa-a">該期間尚未由承辦學校開放，請等待通知，開放後才能操作。</div>
   </div>
 

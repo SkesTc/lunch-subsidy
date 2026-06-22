@@ -16,7 +16,7 @@ export async function GET() {
       try {
         const { data } = await supabaseAdmin.storage.from(BUCKET).download(`__account-changes/${f.name}`)
         if (data) return JSON.parse(await data.text())
-      } catch { /* ignore */ }
+      } catch (e) { console.error('account-changes:', e) }
       return null
     })
   )

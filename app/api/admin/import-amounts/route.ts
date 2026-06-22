@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     .from('schools').select('id, code, district, name').eq('is_active', true).order('code')
 
   const { data: existing } = await supabaseAdmin
-    .from('school_amounts').select('*').eq('school_year', schoolYear)
+    .from('school_amounts').select('id, school_id, school_year, sem1_amount, sem2_amount').eq('school_year', schoolYear)
 
   const rows = (schools || []).map(s => {
     const a = existing?.find(x => x.school_id === s.id)

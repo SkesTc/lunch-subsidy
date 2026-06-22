@@ -1,47 +1,18 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { invalidateProfileCache } from '@/lib/profile-cache'
 import { NextResponse } from 'next/server'
-
-function contactPath(email: string) {
-  const safe = email.replace('@', '_at_').replace(/\./g, '_')
-  return `__contacts/${safe}.json`
-}
 
 export async function GET() {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
 
-  let result = await supabaseAdmin
+  const { data } = await supabaseAdmin
     .from('user_profiles')
-    .select('id, email, school_id, is_admin, schools(name, code, district)')
+    .select('id, email, school_id, is_admin, contact_name, contact_title, contact_phone, schools(name, code, district)')
     .order('email')
 
-  const accounts = result.data || []
-
-  // Fetch contact info from Storage for each account
-  const withContact = await Promise.all(
-    accounts.map(async (a) => {
-      try {
-        const { data: blob } = await supabaseAdmin.storage
-          .from('settlement-files')
-          .download(contactPath(a.email))
-        if (blob) {
-          const parsed = JSON.parse(await blob.text())
-          return {
-            ...a,
-            contact_name: parsed.contact_name || '',
-            contact_title: parsed.contact_title || '',
-            contact_phone: parsed.contact_phone || '',
-          }
-        }
-      } catch {
-        // no contact file yet
-      }
-      return { ...a, contact_name: '', contact_title: '', contact_phone: '' }
-    })
-  )
-
-  return NextResponse.json(withContact)
+  return NextResponse.json(data || [])
 }
 
 export async function POST(req: Request) {
@@ -60,7 +31,7 @@ export async function POST(req: Request) {
   } else {
     await supabaseAdmin.from('user_profiles').insert({ email, is_admin: true })
   }
-
+  invalidateProfileCache(email)
   return NextResponse.json({ ok: true })
 }
 
@@ -72,6 +43,7 @@ export async function DELETE(req: Request) {
   if (email === session.user.email) return NextResponse.json({ error: '無法刪除自己的帳號' }, { status: 400 })
 
   await supabaseAdmin.from('user_profiles').delete().eq('email', email)
+  invalidateProfileCache(email)
   return NextResponse.json({ ok: true })
 }
 
@@ -86,5 +58,9 @@ export async function PATCH(req: Request) {
     .eq('email', email)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // 若異動 school_id 或 is_admin，清快取
+  if (updates.school_id !== undefined || updates.is_admin !== undefined) {
+    invalidateProfileCache(email)
+  }
   return NextResponse.json({ ok: true })
 }

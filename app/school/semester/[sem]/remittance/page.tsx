@@ -3,6 +3,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { formatAmount } from '@/lib/utils'
+import { Spinner } from '@/components/Spinner'
 
 export default function RemittancePage() {
   const router = useRouter()
@@ -32,26 +33,23 @@ export default function RemittancePage() {
   }
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/settlement?semester=2').then(r => r.json()),
-      fetch('/api/settlement/change-request?semester=2').then(r => r.json()),
-    ]).then(([d, requests]) => {
-      if (d) {
-        setRepayAmount(d.repay_amount || 0)
-        if (d.remittance_file_path) setExistingPath(d.remittance_file_path)
-        if (d.remittance_date) setExistingDate(d.remittance_date)
+    fetch('/api/school/status?semester=2').then(r => r.json()).then(({ settlement, pendingRequests }) => {
+      if (settlement) {
+        setRepayAmount(settlement.repay_amount || 0)
+        if (settlement.remittance_file_path) setExistingPath(settlement.remittance_file_path)
+        if (settlement.remittance_date) setExistingDate(settlement.remittance_date)
       }
-      if (Array.isArray(requests)) {
-        const pending = requests.filter((r: { status: string }) => r.status === 'pending')
+      if (Array.isArray(pendingRequests)) {
+        const pending = pendingRequests.filter((r: { status: string }) => r.status === 'pending')
         setPendingUpload(pending.some((r: { request_type: string }) => r.request_type === 'remittance_upload'))
         setHasPendingRequest(pending.some((r: { request_type: string }) => r.request_type === 'remittance_reupload'))
       }
-    })
+    }).catch(() => {})
   }, [])
 
   async function handleUpload() {
     if (!file || !date) { setError('請選擇檔案並填寫繳款日期'); return }
-    if (file.size > 10 * 1024 * 1024) { setError('檔案大小不可超過 10MB'); return }
+    if (file.size > 20 * 1024 * 1024) { setError('檔案大小不可超過 20MB'); return }
     setUploading(true); setError('')
     const fd = new FormData()
     fd.append('file', file)
@@ -66,7 +64,7 @@ export default function RemittancePage() {
   async function handleRequestSubmit() {
     if (!modalFile) { setReasonError('請選擇要上傳的新憑單'); return }
     if (!reason.trim()) { setReasonError('請填寫申請原因'); return }
-    if (modalFile.size > 10 * 1024 * 1024) { setReasonError('檔案大小不可超過 10MB'); return }
+    if (modalFile.size > 20 * 1024 * 1024) { setReasonError('檔案大小不可超過 20MB'); return }
     setSubmitting(true); setReasonError('')
     const fd = new FormData()
     fd.append('file', modalFile)
@@ -187,7 +185,7 @@ export default function RemittancePage() {
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button onClick={handleUpload} disabled={!file || !date || uploading}
                 className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-300 text-white font-medium py-3 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
-                {uploading ? '上傳中...' : '確認上傳送款憑單'}
+                {uploading ? <span className="flex items-center justify-center gap-2"><Spinner /> 上傳中...</span> : '確認上傳送款憑單'}
               </button>
             </>
           )}
@@ -253,7 +251,7 @@ export default function RemittancePage() {
                   </button>
                   <button onClick={handleRequestSubmit} disabled={submitting}
                     className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer hover:bg-blue-700 disabled:bg-gray-300">
-                    {submitting ? '上傳中...' : '送出申請'}
+                    {submitting ? <span className="flex items-center justify-center gap-2"><Spinner /> 上傳中...</span> : '送出申請'}
                   </button>
                 </div>
               </>

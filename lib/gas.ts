@@ -1,21 +1,5 @@
-import { supabaseAdmin } from './supabase'
-
-const BUCKET = 'settlement-files'
-
-export async function getGasSettings(): Promise<{ gasUrl: string; gasSecret: string; driveFolderId: string }> {
-  try {
-    const { data } = await supabaseAdmin.storage.from(BUCKET).download('__system/settings.json')
-    if (data) {
-      const s = JSON.parse(await data.text())
-      return {
-        gasUrl: s.gas_url || '',
-        gasSecret: s.gas_secret || '',
-        driveFolderId: s.drive_folder_id || '',
-      }
-    }
-  } catch { /* ignore */ }
-  return { gasUrl: '', gasSecret: '', driveFolderId: '' }
-}
+// 向下相容：重新匯出 settings.ts 的 getGasSettings
+export { getGasSettings } from './settings'
 
 export async function gasUploadFile(opts: {
   gasUrl: string

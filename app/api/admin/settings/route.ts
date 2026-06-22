@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { invalidateSettingsCache } from '@/lib/settings'
 import { NextResponse } from 'next/server'
 
 const BUCKET = 'settlement-files'
@@ -69,5 +70,6 @@ export async function POST(req: Request) {
     .upload(PATH, blob, { upsert: true, contentType: 'application/json' })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  invalidateSettingsCache()
   return NextResponse.json({ ok: true })
 }

@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const schoolYear = searchParams.get('school_year') || await getActiveSchoolYear()
   const { data } = await supabaseAdmin
-    .from('school_amounts').select('*').eq('school_year', schoolYear)
+    .from('school_amounts').select('school_id, school_year, sem1_amount, sem2_amount, approved_total').eq('school_year', schoolYear)
   return NextResponse.json(data || [])
 }
 

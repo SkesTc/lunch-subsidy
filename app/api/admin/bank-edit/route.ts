@@ -8,11 +8,11 @@ export async function GET(req: Request) {
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
   const { searchParams } = new URL(req.url)
   const schoolYear = searchParams.get('school_year') || await getActiveSchoolYear()
-  const { data: schools } = await supabaseAdmin.from('schools').select('id').eq('school_year_start', schoolYear)
-  const schoolIds = (schools || []).map((s: { id: number }) => s.id)
+  // 加 school_year 過濾，避免隨資料累積越撈越多
   const { data } = await supabaseAdmin
     .from('bank_accounts')
     .select('school_id, semester, confirmed_at, is_modified, bank_name, branch_name, bank_code, account_name, account_number')
+    .eq('school_year', schoolYear)
   return NextResponse.json(data || [])
 }
 

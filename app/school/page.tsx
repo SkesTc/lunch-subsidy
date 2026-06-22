@@ -1,18 +1,13 @@
 import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getActiveSchoolYear } from '@/lib/schoolYear'
-import { getSystemSettings } from '@/lib/settings'
+import { getAllSettings } from '@/lib/settings'
 import Navbar from '@/components/Navbar'
 import Link from 'next/link'
 import { formatAmount } from '@/lib/utils'
 import RebindButton from '@/components/RebindButton'
 import ContactEditButton from '@/components/ContactEditButton'
-
-function contactPath(email: string) {
-  const safe = email.replace('@', '_at_').replace(/\./g, '_')
-  return `__contacts/${safe}.json`
-}
+import ReviewNotifications from '@/components/ReviewNotifications'
 
 const SETTINGS_DEFAULTS = {
   block1_open: 'true', block1_deadline: '115學年度開學後',
@@ -25,46 +20,45 @@ export default async function SchoolDashboard() {
   if (!session?.user?.email) redirect('/login')
   if (!session.user.school_id) redirect('/bind-school')
 
-  const [schoolYear, sysSettings] = await Promise.all([getActiveSchoolYear(), getSystemSettings()])
+  // 【優化】一次取得設定（快取），同步取得 schoolYear 避免多次呼叫
+  const sysSettings = await getAllSettings()
+  const schoolYear = (sysSettings.active_school_year || sysSettings.school_year || '115') as string
 
+  // 【優化】全部 DB 查詢合併為一輪 Promise.all，包含聯絡人和審核通知
   const [
     { data: school },
     { data: amounts },
     { data: bank1 },
     { data: settle1 },
     { data: settle2 },
-    { data: pendingRequests },
+    { data: allChangeRequests },
+    { data: profileRow },
   ] = await Promise.all([
     supabaseAdmin.from('schools').select('id, code, district, name').eq('id', session.user.school_id).single(),
     supabaseAdmin.from('school_amounts').select('sem1_amount, sem2_amount, approved_total').eq('school_id', session.user.school_id).eq('school_year', schoolYear).single(),
     supabaseAdmin.from('bank_accounts').select('confirmed_at, is_modified').eq('school_id', session.user.school_id).eq('semester', 1).eq('school_year', schoolYear).single(),
     supabaseAdmin.from('settlements').select('status, scan_file_path, total_expense, surplus, repay_amount, business_expense').eq('school_id', session.user.school_id).eq('semester', 1).eq('school_year', schoolYear).single(),
     supabaseAdmin.from('settlements').select('status, scan_file_path, remittance_file_path, total_expense, surplus, repay_amount, business_expense').eq('school_id', session.user.school_id).eq('semester', 2).eq('school_year', schoolYear).single(),
-    supabaseAdmin.from('change_requests').select('semester, request_type, status').eq('school_id', session.user.school_id).eq('school_year', schoolYear).eq('status', 'pending'),
+    // 【優化】兩次 change_requests 查詢合併為一次，記憶體分流
+    supabaseAdmin.from('change_requests')
+      .select('id, semester, request_type, status, reviewed_at')
+      .eq('school_id', session.user.school_id)
+      .eq('school_year', schoolYear)
+      .order('reviewed_at', { ascending: false }),
+    supabaseAdmin.from('user_profiles').select('contact_name, contact_title, contact_phone').eq('email', session.user.email).single(),
   ])
 
+  // 記憶體分流：pending 和 reviewed 通知
+  const pendingRequests = (allChangeRequests || []).filter(r => r.status === 'pending')
+  const recentReviewed = (allChangeRequests || []).filter(r => r.status === 'approved' || r.status === 'rejected')
+
   const hasPending = (sem: number, types: string[]) =>
-    (pendingRequests || []).some(r => r.semester === sem && types.includes(r.request_type))
+    pendingRequests.some(r => r.semester === sem && types.includes(r.request_type))
 
-  // Read contact info from Storage
-  let contactName = ''
-  let contactTitle = ''
-  let contactPhone = ''
-  try {
-    const { data: contactBlob } = await supabaseAdmin.storage
-      .from('settlement-files')
-      .download(contactPath(session.user.email))
-    if (contactBlob) {
-      const parsed = JSON.parse(await contactBlob.text())
-      contactName = parsed.contact_name || ''
-      contactTitle = parsed.contact_title || ''
-      contactPhone = parsed.contact_phone || ''
-    }
-  } catch {
-    // contact not set yet
-  }
+  const contactName = profileRow?.contact_name || ''
+  const contactTitle = profileRow?.contact_title || ''
+  const contactPhone = profileRow?.contact_phone || ''
 
-  // Use system settings for block open/deadline
   const settings = { ...SETTINGS_DEFAULTS, ...sysSettings }
 
   const block1Open = settings.block1_open === 'true'
@@ -86,6 +80,11 @@ export default async function SchoolDashboard() {
       <Navbar schoolName={school?.name} email={session.user.email} isAdmin={session.user.is_admin} schoolYear={schoolYear} systemName={sysSettings.system_name} manualUrl={sysSettings.manual_url} />
 
       <main className="max-w-3xl mx-auto px-4 py-8 space-y-4">
+        {/* 審核結果通知 */}
+        {recentReviewed && recentReviewed.length > 0 && (
+          <ReviewNotifications notifications={recentReviewed as { id: string; semester: number; request_type: string; status: 'approved' | 'rejected'; reviewed_at: string }[]} />
+        )}
+
         {/* 學校資訊卡 */}
         <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 space-y-4">
           <div className="flex items-start justify-between">
@@ -190,8 +189,9 @@ export default async function SchoolDashboard() {
             {
               label: '上傳經費收支結算表掃描檔',
               done: !!settle1?.scan_file_path,
+              pending: hasPending(1, ['scan_upload', 'scan_reupload']),
               href: '/school/semester/1/upload',
-              desc: hasPending(1, ['scan_upload', 'scan_reupload']) ? '⏳ 待審核中，請靜候通知' : settle1?.scan_file_path ? '✓ 已核准' : '請上傳列印蓋章後的掃描檔',
+              desc: hasPending(1, ['scan_upload', 'scan_reupload']) ? '待審核中，請靜候通知' : settle1?.scan_file_path ? '✓ 已核准' : '請上傳列印蓋章後的掃描檔',
             },
           ]}
         />
@@ -212,14 +212,16 @@ export default async function SchoolDashboard() {
             {
               label: '上傳經費收支結算表掃描檔',
               done: !!settle2?.scan_file_path,
+              pending: hasPending(2, ['scan_upload', 'scan_reupload']),
               href: '/school/semester/2/upload',
-              desc: hasPending(2, ['scan_upload', 'scan_reupload']) ? '⏳ 待審核中，請靜候通知' : settle2?.scan_file_path ? '✓ 已核准' : '請上傳列印蓋章後的掃描檔',
+              desc: hasPending(2, ['scan_upload', 'scan_reupload']) ? '待審核中，請靜候通知' : settle2?.scan_file_path ? '✓ 已核准' : '請上傳列印蓋章後的掃描檔',
             },
             {
               label: '上傳賸餘款送款憑單',
               done: !!settle2?.remittance_file_path,
+              pending: hasPending(2, ['remittance_upload', 'remittance_reupload']),
               href: '/school/semester/2/remittance',
-              desc: hasPending(2, ['remittance_upload', 'remittance_reupload']) ? '⏳ 待審核中，請靜候通知' : settle2?.remittance_file_path ? '✓ 已核准' : (settle2?.surplus ?? 0) > 0 ? '有賸餘款，請繳款後上傳憑單' : '如有賸餘款，繳回公庫後上傳送款憑單',
+              desc: hasPending(2, ['remittance_upload', 'remittance_reupload']) ? '待審核中，請靜候通知' : settle2?.remittance_file_path ? '✓ 已核准' : (settle2?.surplus ?? 0) > 0 ? '有賸餘款，請繳款後上傳憑單' : '如有賸餘款，繳回公庫後上傳送款憑單',
             },
           ]}
         />
@@ -249,7 +251,7 @@ function PeriodCard({ label, color, deadline, disabled, steps }: {
   color: 'blue' | 'sky' | 'indigo'
   deadline: string
   disabled?: boolean
-  steps: { label: string; done: boolean; href: string; desc: string; optional?: boolean }[]
+  steps: { label: string; done: boolean; pending?: boolean; href: string; desc: string; optional?: boolean }[]
 }) {
   const headerColor = {
     blue: disabled ? 'bg-gray-400' : 'bg-blue-600',
@@ -272,8 +274,12 @@ function PeriodCard({ label, color, deadline, disabled, steps }: {
           steps.map((step, i) => (
             <Link key={i} href={step.href}
               className="flex items-center gap-4 p-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all group">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold ${step.optional ? 'bg-blue-100 text-blue-500' : step.done ? 'bg-green-500 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                {step.optional ? '✎' : step.done ? '✓' : i + 1}
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold
+                ${step.optional ? 'bg-blue-100 text-blue-500'
+                  : step.done ? 'bg-green-500 text-white'
+                  : step.pending ? 'bg-amber-400 text-white'
+                  : 'bg-gray-200 text-gray-600'}`}>
+                {step.optional ? '✎' : step.done ? '✓' : step.pending ? '⏳' : i + 1}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-gray-800 text-sm">{step.label}</p>

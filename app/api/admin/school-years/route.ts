@@ -1,22 +1,16 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { getAllSettings, invalidateSettingsCache } from '@/lib/settings'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 
 const BUCKET = 'settlement-files'
 const SETTINGS_PATH = '__system/settings.json'
 
-async function readSettings() {
-  try {
-    const { data } = await supabaseAdmin.storage.from(BUCKET).download(SETTINGS_PATH)
-    if (data) return JSON.parse(await data.text())
-  } catch { /* ignore */ }
-  return {}
-}
-
 async function writeSettings(s: Record<string, unknown>) {
   const blob = new Blob([JSON.stringify(s, null, 2)], { type: 'application/json' })
   await supabaseAdmin.storage.from(BUCKET).upload(SETTINGS_PATH, blob, { upsert: true, contentType: 'application/json' })
+  invalidateSettingsCache()
 }
 
 // GET: list all school years + active year
@@ -24,7 +18,7 @@ export async function GET() {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
 
-  const settings = await readSettings()
+  const settings = await getAllSettings()
   const active = settings.active_school_year || settings.school_year || '115'
   const years: string[] = Array.isArray(settings.school_years) && settings.school_years.length
     ? settings.school_years : ['115']
@@ -50,7 +44,7 @@ export async function POST(req: Request) {
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
 
   const { action, schoolYear } = await req.json()
-  const settings = await readSettings()
+  const settings = await getAllSettings()
 
   if (action === 'switch') {
     const years: string[] = Array.isArray(settings.school_years) ? settings.school_years : ['115']
@@ -78,14 +72,12 @@ export async function POST(req: Request) {
       { data: banks },
       { data: settlements },
       { data: accounts },
-      settings,
     ] = await Promise.all([
-      supabaseAdmin.from('schools').select('*').order('code'),
-      supabaseAdmin.from('school_amounts').select('*').eq('school_year', schoolYear),
-      supabaseAdmin.from('bank_accounts').select('*').eq('school_year', schoolYear),
-      supabaseAdmin.from('settlements').select('*').eq('school_year', schoolYear),
+      supabaseAdmin.from('schools').select('id, code, district, name, is_active').order('code'),
+      supabaseAdmin.from('school_amounts').select('school_id, school_year, sem1_amount, sem2_amount, approved_total').eq('school_year', schoolYear),
+      supabaseAdmin.from('bank_accounts').select('school_id, semester, school_year, bank_name, branch_name, bank_code, account_name, account_number, confirmed_at, is_modified').eq('school_year', schoolYear),
+      supabaseAdmin.from('settlements').select('school_id, semester, school_year, status, personnel_expense, business_expense, equipment_expense, total_expense, surplus, repay_amount, scan_file_path, remittance_file_path, remittance_date').eq('school_year', schoolYear),
       supabaseAdmin.from('profiles').select('email, is_admin, school_id, created_at').order('created_at'),
-      readSettings(),
     ])
 
     const schoolMap = Object.fromEntries((schools || []).map(s => [s.id, s]))
@@ -161,6 +153,30 @@ export async function POST(req: Request) {
         'Content-Disposition': `attachment; filename="${schoolYear}_backup.xlsx"`,
       },
     })
+  }
+
+  if (action === 'clear-reviews') {
+    if (!schoolYear) return NextResponse.json({ error: '未指定學年度' }, { status: 400 })
+
+    // 1. 清除 change_requests 表（實支金額修改、掃描檔/憑單上傳申請）
+    const { error: crError, count: crCount } = await supabaseAdmin
+      .from('change_requests')
+      .delete({ count: 'exact' })
+      .eq('school_year', schoolYear)
+    if (crError) return NextResponse.json({ error: crError.message }, { status: 500 })
+
+    // 2. 清除 Storage 中的帳戶變更申請 JSON 檔（格式：{schoolId}_{schoolYear}.json）
+    const { data: acFiles } = await supabaseAdmin.storage.from(BUCKET).list('__account-changes')
+    const toDelete = (acFiles || [])
+      .filter(f => f.name.endsWith(`_${schoolYear}.json`))
+      .map(f => `__account-changes/${f.name}`)
+    let acCount = 0
+    if (toDelete.length > 0) {
+      await supabaseAdmin.storage.from(BUCKET).remove(toDelete)
+      acCount = toDelete.length
+    }
+
+    return NextResponse.json({ ok: true, deleted: (crCount ?? 0) + acCount })
   }
 
   return NextResponse.json({ error: '未知的 action' }, { status: 400 })

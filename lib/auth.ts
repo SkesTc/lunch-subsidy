@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth'
 import Google from 'next-auth/providers/google'
 import { supabaseAdmin } from './supabase'
+import { getCachedProfile, invalidateProfileCache } from './profile-cache'
 
 const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim())
 
@@ -44,14 +45,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session }) {
       if (!session.user?.email) return session
-      const { data } = await supabaseAdmin
-        .from('user_profiles')
-        .select('*')
-        .eq('email', session.user.email)
-        .single()
-      if (data) {
-        session.user.school_id = data.school_id
-        session.user.is_admin = data.is_admin
+      const profile = await getCachedProfile(session.user.email)
+      if (profile) {
+        session.user.school_id = profile.school_id
+        session.user.is_admin = profile.is_admin
       }
       return session
     },

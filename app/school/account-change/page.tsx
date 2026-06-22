@@ -24,14 +24,14 @@ export default function AccountChangePage() {
   const [bankCodeError, setBankCodeError] = useState('')
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/account?semester=1').then(r => r.json()),
-      fetch('/api/account/change-request').then(r => r.json()),
-    ]).then(([bank, req]) => {
-      if (bank) setCurrent({ bank_name: bank.bank_name, branch_name: bank.branch_name, bank_code: bank.bank_code, account_name: bank.account_name, account_number: bank.account_number })
-      if (req) setExisting(req)
-      setLoading(false)
-    })
+    fetch('/api/school/account-status')
+      .then(r => r.json())
+      .then(({ bankAccount, pendingRequest }) => {
+        if (bankAccount) setCurrent({ bank_name: bankAccount.bank_name, branch_name: bankAccount.branch_name, bank_code: bankAccount.bank_code, account_name: bankAccount.account_name, account_number: bankAccount.account_number })
+        if (pendingRequest) setExisting(pendingRequest)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
   }, [])
 
   function set(k: keyof BankForm, v: string) {

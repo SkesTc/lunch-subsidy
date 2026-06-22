@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getActiveSchoolYear } from '@/lib/schoolYear'
+import { getAllSettings } from '@/lib/settings'
 import { NextResponse } from 'next/server'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
 
@@ -9,9 +9,10 @@ export async function GET(req: Request) {
   if (!session?.user?.school_id) return NextResponse.json(null)
   const { searchParams } = new URL(req.url)
   const semester = Number(searchParams.get('semester'))
-  const schoolYear = await getActiveSchoolYear()
+  const { active_school_year, school_year } = await getAllSettings()
+  const schoolYear = (active_school_year || school_year || '115') as string
   const { data } = await supabaseAdmin
-    .from('settlements').select('*')
+    .from('settlements').select('id, school_id, semester, school_year, status, business_expense, total_expense, surplus, repay_amount, scan_file_path, remittance_file_path, remittance_date, amount_locked, updated_at')
     .eq('school_id', session.user.school_id).eq('semester', semester).eq('school_year', schoolYear).single()
   return NextResponse.json(data)
 }
@@ -22,7 +23,8 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const { semester, personnel_expense, business_expense, equipment_expense } = body
-  const schoolYear = await getActiveSchoolYear()
+  const { active_school_year, school_year } = await getAllSettings()
+  const schoolYear = (active_school_year || school_year || '115') as string
 
   const { data: amountRow } = await supabaseAdmin
     .from('school_amounts').select('sem1_amount, sem2_amount').eq('school_id', session.user.school_id).eq('school_year', schoolYear).single()

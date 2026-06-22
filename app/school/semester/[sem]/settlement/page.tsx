@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { formatAmount, calcRatio, calcSurplus, calcRepay, semLabel, toChineseAmount, parseInputAmount, formatInputDisplay } from '@/lib/utils'
 import LoadingSpinner from '@/components/LoadingSpinner'
+import { Spinner } from '@/components/Spinner'
 
 interface SchoolInfo { name: string; district: string; code: number }
 interface AmountInfo { sem1_amount: number; sem2_amount: number }
@@ -34,21 +35,18 @@ export default function SettlementPage() {
   const [modifyDone, setModifyDone] = useState(false)
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/schools/me').then(r => r.json()),
-      fetch(`/api/settlement?semester=${semester}`).then(r => r.json()),
-      fetch('/api/settings/public').then(r => r.json()),
-      fetch(`/api/amounts/me?semester=${semester}`).then(r => r.json()),
-    ]).then(([s, st, cfg, amt]) => {
-      setSchool(s)
-      if (st?.business_expense) setBusinessRaw(String(st.business_expense))
-      setExisting(st)
-      setIsLocked(st?.amount_locked === true)
-      if (cfg?.school_year) setSchoolYear(cfg.school_year)
-      if (cfg?.plan_name) setSettingPlanName(cfg.plan_name)
-      if (amt) setAmountInfo(amt)
-      setLoading(false)
-    })
+    fetch(`/api/school/settlement-data?semester=${semester}`)
+      .then(r => r.json())
+      .then(({ school: s, settlement: st, amounts: amt, schoolYear: sy, planName }) => {
+        setSchool(s)
+        if (st?.business_expense) setBusinessRaw(String(st.business_expense))
+        setExisting(st)
+        setIsLocked(st?.amount_locked === true)
+        if (sy) setSchoolYear(sy)
+        if (planName) setSettingPlanName(planName)
+        if (amt) setAmountInfo(amt)
+        setLoading(false)
+      })
   }, [semester])
 
   if (loading || !school) return <LoadingSpinner />
@@ -241,7 +239,7 @@ export default function SettlementPage() {
                 disabled={saving || D === 0}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-medium py-3 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
               >
-                {saving ? '儲存中...' : '儲存'}
+                {saving ? <span className="flex items-center justify-center gap-2"><Spinner /> 儲存中...</span> : '儲存'}
               </button>
             )}
 
@@ -250,7 +248,7 @@ export default function SettlementPage() {
               disabled={downloading || !hasSaved}
               className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white font-medium py-3 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
             >
-              {downloading ? '處理中...' : '下載經費收支結算表 PDF'}
+              {downloading ? <span className="flex items-center justify-center gap-2"><Spinner /> 處理中...</span> : '下載經費收支結算表 PDF'}
             </button>
 
             {isLocked && (
@@ -332,7 +330,7 @@ export default function SettlementPage() {
                   </button>
                   <button onClick={handleModifySubmit} disabled={modifySubmitting}
                     className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer hover:bg-blue-700 disabled:bg-gray-300">
-                    {modifySubmitting ? '送出中...' : '送出申請'}
+                    {modifySubmitting ? <span className="flex items-center justify-center gap-2"><Spinner /> 送出中...</span> : '送出申請'}
                   </button>
                 </div>
               </>

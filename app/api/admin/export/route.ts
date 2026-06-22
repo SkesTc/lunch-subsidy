@@ -15,9 +15,9 @@ export async function GET(req: Request) {
   const schoolYear = await getActiveSchoolYear()
 
   const { data: schools } = await supabaseAdmin.from('schools').select('id, code, district, name').eq('is_active', true).order('code')
-  const { data: amounts } = await supabaseAdmin.from('school_amounts').select('*').eq('school_year', schoolYear)
-  const { data: banks } = await supabaseAdmin.from('bank_accounts').select('*').eq('semester', semester).eq('school_year', schoolYear)
-  const { data: settlements } = await supabaseAdmin.from('settlements').select('*').eq('semester', semester).eq('school_year', schoolYear)
+  const { data: amounts } = await supabaseAdmin.from('school_amounts').select('school_id, sem1_amount, sem2_amount, approved_total').eq('school_year', schoolYear)
+  const { data: banks } = await supabaseAdmin.from('bank_accounts').select('school_id, bank_name, branch_name, bank_code, account_name, account_number, contact_name, contact_phone, confirmed_at, is_modified').eq('semester', semester).eq('school_year', schoolYear)
+  const { data: settlements } = await supabaseAdmin.from('settlements').select('school_id, total_expense, business_expense, surplus, repay_amount, scan_file_path, remittance_file_path, remittance_date, status').eq('semester', semester).eq('school_year', schoolYear)
 
   if (type === 'bank') {
     const rows = (schools || []).map(s => {

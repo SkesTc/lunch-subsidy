@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getActiveSchoolYear } from '@/lib/schoolYear'
+import { getAllSettings } from '@/lib/settings'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
@@ -8,10 +8,11 @@ export async function GET(req: Request) {
   if (!session?.user?.school_id) return NextResponse.json(null)
   const { searchParams } = new URL(req.url)
   const semester = Number(searchParams.get('semester'))
-  const schoolYear = await getActiveSchoolYear()
+  const { active_school_year, school_year } = await getAllSettings()
+  const schoolYear = (active_school_year || school_year || '115') as string
 
   const { data } = await supabaseAdmin
-    .from('bank_accounts').select('*')
+    .from('bank_accounts').select('id, school_id, semester, bank_name, branch_name, bank_code, account_name, account_number, confirmed_at, is_modified, is_preloaded')
     .eq('school_id', session.user.school_id).eq('semester', semester).eq('school_year', schoolYear).single()
 
   return NextResponse.json(data)
@@ -25,10 +26,11 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const { semester, bank_name, branch_name, bank_code, account_name, account_number, contact_name, contact_phone } = body
-  const schoolYear = await getActiveSchoolYear()
+  const { active_school_year, school_year } = await getAllSettings()
+  const schoolYear = (active_school_year || school_year || '115') as string
 
   const { data: existing } = await supabaseAdmin
-    .from('bank_accounts').select('*')
+    .from('bank_accounts').select('id, school_id, semester, bank_name, branch_name, bank_code, account_name, account_number, confirmed_at, is_modified, is_preloaded')
     .eq('school_id', session.user.school_id).eq('semester', semester).eq('school_year', schoolYear).single()
 
   const isModified = existing?.is_preloaded

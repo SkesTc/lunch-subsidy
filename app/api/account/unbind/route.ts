@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { invalidateProfileCache } from '@/lib/profile-cache'
 import { NextResponse } from 'next/server'
 
 export async function POST() {
@@ -11,5 +12,6 @@ export async function POST() {
     .update({ school_id: null })
     .eq('email', session.user.email)
 
+  invalidateProfileCache(session.user.email)
   return NextResponse.json({ ok: true })
 }

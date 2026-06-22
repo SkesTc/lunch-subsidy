@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 export async function GET() {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
-  const { data } = await supabaseAdmin.from('schools').select('*').order('code')
+  const { data } = await supabaseAdmin.from('schools').select('id, code, district, name, is_active').order('code')
   return NextResponse.json(data || [])
 }
 

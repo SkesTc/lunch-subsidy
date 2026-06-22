@@ -2,6 +2,7 @@
 import { useParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { Spinner } from '@/components/Spinner'
 
 function fileViewUrl(path: string) {
   if (!path) return null
@@ -32,13 +33,10 @@ export default function UploadPage() {
   const [requestDone, setRequestDone] = useState(false)
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/settlement?semester=${semester}`).then(r => r.json()),
-      fetch(`/api/settlement/change-request?semester=${semester}`).then(r => r.json()),
-    ]).then(([settle, requests]) => {
-      if (settle?.scan_file_path) setExistingPath(settle.scan_file_path)
-      if (Array.isArray(requests)) {
-        const pending = requests.filter((r: { status: string }) => r.status === 'pending')
+    fetch(`/api/school/status?semester=${semester}`).then(r => r.json()).then(({ settlement, pendingRequests }) => {
+      if (settlement?.scan_file_path) setExistingPath(settlement.scan_file_path)
+      if (Array.isArray(pendingRequests)) {
+        const pending = pendingRequests.filter((r: { status: string }) => r.status === 'pending')
         setPendingUpload(pending.some((r: { request_type: string }) => r.request_type === 'scan_upload'))
         setPendingReupload(pending.some((r: { request_type: string }) => r.request_type === 'scan_reupload'))
       }
@@ -170,7 +168,7 @@ export default function UploadPage() {
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button onClick={handleUpload} disabled={!file || uploading}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-medium py-3 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
-                {uploading ? '上傳中...' : '確認上傳'}
+                {uploading ? <span className="flex items-center justify-center gap-2"><Spinner /> 上傳中...</span> : '確認上傳'}
               </button>
             </>
           )}
@@ -223,7 +221,7 @@ export default function UploadPage() {
                   <button onClick={closeModal} className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm cursor-pointer hover:bg-gray-50">取消</button>
                   <button onClick={handleRequestSubmit} disabled={submitting}
                     className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer hover:bg-blue-700 disabled:bg-gray-300">
-                    {submitting ? '上傳中...' : '送出申請'}
+                    {submitting ? <span className="flex items-center justify-center gap-2"><Spinner /> 上傳中...</span> : '送出申請'}
                   </button>
                 </div>
               </>
