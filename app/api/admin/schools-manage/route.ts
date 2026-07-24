@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
   const { code, district, name } = await req.json()
   if (!code || !district || !name) return NextResponse.json({ error: '請填寫所有欄位' }, { status: 400 })
-  const { data, error } = await supabaseAdmin.from('schools').insert({ code, district, name, is_active: true }).select().single()
+  const { data, error } = await supabaseAdmin.from('schools').insert({ code, district, name, is_active: true, approved_total: 0, sem1_amount: 0, sem2_amount: 0 }).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
