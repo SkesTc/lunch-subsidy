@@ -56,7 +56,11 @@ export default function AccountChangePage() {
     }
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400">載入中...</div>
+  if (loading) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <span className="w-8 h-8 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  )
 
   const statusMap: Record<string, { label: string; color: string }> = {
     pending:  { label: '審核中', color: 'text-orange-600 bg-orange-50 border-orange-200' },
@@ -111,9 +115,8 @@ export default function AccountChangePage() {
 
             {[
               { key: 'bank_name', label: '銀行名稱', placeholder: '例：臺灣銀行' },
-              { key: 'branch_name', label: '分行名稱', placeholder: '例：豐原分行' },
-              { key: 'bank_code', label: '金融機構代碼', placeholder: '7位數字，例：0040303' },
-              { key: 'account_name', label: '帳戶戶名', placeholder: '保管金專戶全銜' },
+              { key: 'account_name', label: '帳戶名稱', placeholder: '保管金專戶全銜' },
+              { key: 'bank_code', label: '局號', placeholder: '7位數字，例：0040303' },
               { key: 'account_number', label: '帳號', placeholder: '存帳帳號' },
             ].map(f => (
               <div key={f.key}>

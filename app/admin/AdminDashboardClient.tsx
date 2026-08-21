@@ -7,22 +7,62 @@ import type { School, AmountRow, BankRow, SettleRow, ProfileRow, ContactInfo } f
 
 // 動態載入較重的頁籤，減少初始 JS bundle
 const SchoolsTab = dynamic(() => import('./tabs/SchoolsTab'), { loading: () => <BlockSpinner /> })
+const SchoolMgmtTab = dynamic(() => import('./tabs/SchoolMgmtTab'), { loading: () => <BlockSpinner /> })
 const AccountsTab = dynamic(() => import('./tabs/AccountsTab'), { loading: () => <BlockSpinner /> })
 const SettingsTab = dynamic(() => import('./tabs/SettingsTab'), { loading: () => <BlockSpinner /> })
+const ZonesTab = dynamic(() => import('./tabs/ZonesTab'), { loading: () => <BlockSpinner /> })
 
+type Tab = 'overview' | 'review' | 'accounts' | 'schools' | 'school_mgmt' | 'settings' | 'zones'
 
-type Tab = 'overview' | 'review' | 'accounts' | 'schools' | 'settings'
+export interface Plan {
+  id: string; name: string; label: string; semester: number | null
+  require_repay: boolean; deduct_s1_repay: boolean; sort_order: number; is_active: boolean
+  deadline: string; school_year: string
+}
+export interface PlanAmount { school_id: number; plan_id: string; semester: number; amount: number }
 
 export default function AdminDashboardClient({
-  schools, amounts, banks, settlements, profiles, contacts, currentUserEmail, activeSchoolYear
+  schools, amounts, banks, settlements, profiles, contacts, currentUserEmail, activeSchoolYear, plans, planAmounts, adminManualUrl, userRole
 }: {
   schools: School[]; amounts: AmountRow[]; banks: BankRow[]; settlements: SettleRow[]
   profiles: ProfileRow[]; contacts: Record<string, ContactInfo>
   currentUserEmail: string; activeSchoolYear: string
+  plans: Plan[]; planAmounts: PlanAmount[]
+  adminManualUrl?: string
+  userRole?: string
 }) {
   const [tab, setTab] = useState<Tab>('overview')
   const [pendingCount, setPendingCount] = useState(0)
   const [overviewKey, setOverviewKey] = useState(0)
+  const [tabKeys, setTabKeys] = useState<Record<string, number>>({ review: 0, accounts: 0, schools: 0, school_mgmt: 0, settings: 0 })
+  const [refreshing, setRefreshing] = useState(false)
+  // 總覽的 settlements/planAmounts/plans 可在重新整理時重新取得
+  const [liveSettlements, setLiveSettlements] = useState<SettleRow[]>(settlements)
+  const [livePlanAmounts, setLivePlanAmounts] = useState<PlanAmount[]>(planAmounts)
+  const [livePlans, setLivePlans] = useState<Plan[]>(plans)
+
+  function reloadPlans() {
+    fetch(`/api/admin/plans?school_year=${activeSchoolYear}`)
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d)) setLivePlans(d) })
+      .catch(() => {})
+  }
+  const [driveRootFolderId, setDriveRootFolderId] = useState('')
+  const [driveRootFolderUrl, setDriveRootFolderUrl] = useState('')
+  const [rootInitingFolders, setRootInitingFolders] = useState(false)
+
+  async function handleInitFolders() {
+    if (!confirm('將在 Google Drive 根資料夾下，為所有分區建立本學年度的子資料夾，確定執行？')) return
+    setRootInitingFolders(true)
+    const res = await fetch('/api/admin/init-drive-folders', { method: 'POST' })
+    const d = await res.json().catch(() => ({}))
+    setRootInitingFolders(false)
+    if (d.ok) alert(`資料夾建立完成：\n${(d.paths as string[]).join('\n')}`)
+    else alert(d.error || '建立失敗')
+  }
+  const [showImpersonate, setShowImpersonate] = useState(false)
+  const [impersonating, setImpersonating] = useState(false)
+  const [impersonateSearch, setImpersonateSearch] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -35,8 +75,13 @@ export default function AdminDashboardClient({
     })
   }, [tab])
 
+  const isSuperAdmin = userRole === 'super_admin'
+  const isZoneAdmin = userRole === 'zone_admin' || isSuperAdmin
+
   const TAB_LABELS: Record<Tab, string> = {
-    overview: '總覽', review: '申請審核', accounts: '帳號管理', schools: '學校管理', settings: '系統設定'
+    overview: '📊 總覽', review: '✅ 申請審核', accounts: '👤 帳號管理',
+    schools: '📋 核銷管理', school_mgmt: '🏫 學校管理', settings: '⚙️ 系統設定',
+    zones: '🗺️ 區別管理',
   }
 
   return (
@@ -51,7 +96,9 @@ export default function AdminDashboardClient({
           </span>
         </div>
         <div className="flex gap-2">
-          {(['overview', 'review', 'accounts', 'schools', 'settings'] as Tab[]).map(t => (
+          {((['overview', 'review', 'schools', 'accounts', 'school_mgmt'] as Tab[])
+            .concat(isZoneAdmin ? ['zones' as Tab] : [])
+            .concat(isSuperAdmin ? ['settings' as Tab] : [])).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors flex items-center gap-1.5 ${tab === t ? (t === 'review' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white') : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`}>
               {TAB_LABELS[t]}
@@ -62,31 +109,99 @@ export default function AdminDashboardClient({
               )}
             </button>
           ))}
-          {tab === 'overview' && (
-            <button onClick={() => window.location.reload()}
-              className="px-3 py-2 rounded-lg text-sm font-medium cursor-pointer bg-white text-gray-500 border border-gray-300 hover:bg-gray-50"
-              title="重新整理">
-              ↻
+          {isSuperAdmin && (
+            <button onClick={() => setShowImpersonate(true)}
+              className="px-3 py-2 rounded-lg text-sm font-medium cursor-pointer bg-amber-500 hover:bg-amber-600 text-white flex items-center gap-1.5">
+              👤 模擬身分
             </button>
           )}
+          <button
+            onClick={async () => {
+              setRefreshing(true)
+              if (tab === 'overview') {
+                // 重新取 settlements 和 planAmounts，確保上傳檔案和實支金額是最新的
+                await Promise.all([
+                  fetch('/api/admin/settlements').then(r => r.json()).then(d => {
+                    if (Array.isArray(d)) setLiveSettlements(d)
+                  }).catch(() => {}),
+                  fetch(`/api/admin/plan-amounts?school_year=${activeSchoolYear}`).then(r => r.json()).then(d => {
+                    if (Array.isArray(d)) setLivePlanAmounts(d)
+                  }).catch(() => {}),
+                ])
+                setOverviewKey(k => k + 1)
+              } else {
+                setTabKeys(prev => ({ ...prev, [tab]: (prev[tab] || 0) + 1 }))
+              }
+              setTimeout(() => setRefreshing(false), 400)
+            }}
+            disabled={refreshing}
+            className="px-3 py-2 rounded-lg text-sm font-medium cursor-pointer bg-white text-gray-500 border border-gray-300 hover:bg-gray-50 flex items-center gap-1.5"
+            title="重新整理">
+            {refreshing
+              ? <span className="w-3.5 h-3.5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin inline-block" />
+              : '↻'}
+          </button>
         </div>
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab key={overviewKey} schools={schools} amounts={amounts} banks={banks} settlements={settlements} profiles={profiles} contacts={contacts} activeSchoolYear={activeSchoolYear} />
+        <OverviewTab key={overviewKey} schools={schools} amounts={amounts} banks={banks} settlements={liveSettlements} profiles={profiles} contacts={contacts} activeSchoolYear={activeSchoolYear} plans={livePlans} planAmounts={livePlanAmounts} isSuperAdmin={isSuperAdmin} driveFolderId={driveRootFolderId} setDriveFolderId={setDriveRootFolderId} driveFolderUrl={driveRootFolderUrl} setDriveFolderUrl={setDriveRootFolderUrl} handleInitFolders={handleInitFolders} initingFolders={rootInitingFolders} />
       )}
       {tab === 'review' && (
-        <ReviewTab activeSchoolYear={activeSchoolYear} schools={schools} profiles={profiles} contacts={contacts}
+        <ReviewTab key={tabKeys.review} activeSchoolYear={activeSchoolYear} schools={schools} profiles={profiles} contacts={contacts} plans={livePlans}
           onReviewDone={() => { setPendingCount(c => Math.max(0, c - 1)); setOverviewKey(k => k + 1) }} />
       )}
       {tab === 'accounts' && (
-        <AccountsTab currentUserEmail={currentUserEmail} />
+        <AccountsTab key={tabKeys.accounts} currentUserEmail={currentUserEmail} isSuperAdmin={isSuperAdmin} />
       )}
       {tab === 'schools' && (
-        <SchoolsTab activeSchoolYear={activeSchoolYear} />
+        <SchoolsTab key={tabKeys.schools} activeSchoolYear={activeSchoolYear} plans={livePlans} isSuperAdmin={isSuperAdmin} onPlansChanged={reloadPlans} />
+      )}
+      {tab === 'school_mgmt' && (
+        <SchoolMgmtTab key={tabKeys.school_mgmt} activeSchoolYear={activeSchoolYear} />
       )}
       {tab === 'settings' && (
-        <SettingsTab />
+        <SettingsTab key={tabKeys.settings} activeSchoolYear={activeSchoolYear} />
+      )}
+      {tab === 'zones' && isZoneAdmin && (
+        <ZonesTab isSuperAdmin={isSuperAdmin} />
+      )}
+
+      {/* 模擬身分 Modal */}
+      {showImpersonate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={e => { if (e.target === e.currentTarget) setShowImpersonate(false) }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-800">👤 選擇模擬身分</h2>
+              <button onClick={() => setShowImpersonate(false)} className="text-gray-400 hover:text-gray-600 cursor-pointer text-xl">✕</button>
+            </div>
+            <p className="text-sm text-gray-500">選擇學校後，將以該學校身分在新分頁開啟學校端畫面，頁面頂部顯示橘色橫幅可隨時結束模擬。</p>
+            <input value={impersonateSearch} onChange={e => setImpersonateSearch(e.target.value)}
+              placeholder="搜尋學校名稱或編號..."
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400" />
+            <div className="max-h-64 overflow-y-auto space-y-1">
+              {schools.filter(s => s.name.includes(impersonateSearch) || String(s.code).includes(impersonateSearch)).map(s => (
+                <button key={s.id} disabled={impersonating}
+                  onClick={async () => {
+                    setImpersonating(true)
+                    await fetch('/api/admin/impersonate', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ school_id: s.id, school_name: s.name }),
+                    })
+                    window.open('/school', '_blank')
+                    setShowImpersonate(false)
+                    setImpersonating(false)
+                  }}
+                  className="w-full text-left px-4 py-2.5 rounded-xl hover:bg-amber-50 border border-transparent hover:border-amber-200 transition-colors cursor-pointer disabled:opacity-50">
+                  <span className="font-medium text-gray-800 text-sm">{s.name}</span>
+                  <span className="text-xs text-gray-400 ml-2">#{s.code}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -95,18 +210,36 @@ export default function AdminDashboardClient({
 // ── 總覽頁籤 ───────────────────────────────────────────────
 type StatusFilter = 'all' | 'done' | 'undone'
 
-function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSettlements, profiles, contacts, activeSchoolYear }: {
+function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSettlements, profiles, contacts, activeSchoolYear, plans, planAmounts, isSuperAdmin, driveFolderId, setDriveFolderId, driveFolderUrl, setDriveFolderUrl, handleInitFolders, initingFolders }: {
   schools: School[]; amounts: AmountRow[]; banks: BankRow[]; settlements: SettleRow[]; profiles: ProfileRow[]; contacts: Record<string, ContactInfo>; activeSchoolYear: string
+  plans: Plan[]; planAmounts: PlanAmount[]
+  isSuperAdmin: boolean; driveFolderId: string; setDriveFolderId: (v: string) => void; driveFolderUrl: string; setDriveFolderUrl: (v: string) => void; handleInitFolders: () => void; initingFolders: boolean
 }) {
+  // 計畫頁籤：有計畫時用計畫切換，否則保持學期切換
+  const hasPlans = plans.length > 0
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
+  const [planSem, setPlanSem] = useState<1 | 2>(1)  // 全學年計畫的學期切換
   const [sem, setSem] = useState<1 | 2>(1)
+
+  // 當計畫載入後，預設選第一個
+  useEffect(() => {
+    if (hasPlans && !selectedPlanId) setSelectedPlanId(plans[0]?.id || null)
+  }, [plans])
+
+  const selectedPlan = plans.find(p => p.id === selectedPlanId) ?? null
+  const isFullYear = selectedPlan?.semester == null
+  // 以選中計畫的 semester 過濾（全學年用 planSem 切換；若無計畫，用 sem state）
+  const effectiveSem: 1 | 2 = hasPlans ? (isFullYear ? planSem : (selectedPlan?.semester ?? 1) as 1 | 2) : sem
   const [search, setSearch] = useState('')
   const [districtFilter, setDistrictFilter] = useState('')
+  const [zoneFilter, setZoneFilter] = useState<number | null>(null)
+  const [zonesMap, setZonesMap] = useState<Record<number, string>>({})
   const [bankFilter, setBankFilter] = useState<StatusFilter>('all')
   const [bindFilter, setBindFilter] = useState<StatusFilter>('all')
   const [scanFilter, setScanFilter] = useState<StatusFilter>('all')
   const [remitFilter, setRemitFilter] = useState<StatusFilter>('all')
+  const [showRemittanceMenu, setShowRemittanceMenu] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [driveFolderId, setDriveFolderId] = useState('')
   const [hostSchool, setHostSchool] = useState('')
   const [planName, setPlanName] = useState('')
   const [settlements, setSettlements] = useState<SettleRow[]>(initSettlements)
@@ -134,7 +267,7 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
 
   // settlement/upload change requests
   interface SettleChangeRequest {
-    id: string; school_id: number; school_year: string; semester: number
+    id: string; school_id: number; school_year: string; semester: number; plan_id: string | null
     request_type: 'amount_modify' | 'scan_upload' | 'scan_reupload' | 'remittance_upload' | 'remittance_reupload'
     new_amount: number | null; reason: string; status: string
     admin_note: string | null; created_at: string
@@ -149,12 +282,22 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   const [settleReviewing, setSettleReviewing] = useState<string | null>(null)
 
   useEffect(() => {
+    fetch('/api/admin/zones').then(r => r.json()).then(d => {
+      if (Array.isArray(d)) {
+        const map: Record<number, string> = {}
+        for (const z of d) map[z.id] = z.name
+        setZonesMap(map)
+      }
+    }).catch(() => {})
     fetch('/api/admin/settings').then(r => r.json()).then(d => {
       if (d.drive_folder_id) setDriveFolderId(d.drive_folder_id)
       if (d.host_school) setHostSchool(d.host_school)
       if (d.plan_name) setPlanName(d.plan_name)
       if (d.notify_subject) setNotifySubject(d.notify_subject)
       if (d.notify_body) setNotifyMsg(d.notify_body)
+    }).catch(() => {})
+    fetch('/api/admin/drive-folder').then(r => r.json()).then(d => {
+      if (d.url) setDriveFolderUrl(d.url)
     }).catch(() => {})
     fetch('/api/admin/account-changes').then(r => r.json()).then(d => {
       if (Array.isArray(d)) setChangeRequests(d)
@@ -201,12 +344,14 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   }
 
   const districts = Array.from(new Set(schools.map(s => s.district))).sort()
+  const zoneIds = Array.from(new Set(schools.map(s => s.zone_id).filter((id): id is number => !!id))).sort((a, b) => a - b)
 
   function getBank(schoolId: number, semester: number) {
     return banks.find(b => b.school_id === schoolId && b.semester === semester)
   }
-  function getSettle(schoolId: number, semester: number) {
-    return settlements.find(s => s.school_id === schoolId && s.semester === semester)
+  function getSettle(schoolId: number, semester: number, planId?: string | null) {
+    if (planId) return settlements.find(s => s.school_id === schoolId && s.plan_id === planId && s.semester === semester)
+    return settlements.find(s => s.school_id === schoolId && s.semester === semester && !s.plan_id)
   }
   function getAmount(schoolId: number) {
     return amounts.find(a => a.school_id === schoolId)
@@ -218,30 +363,87 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   const allSemSchools = schools.map(s => ({
     school: s,
     amount: getAmount(s.id),
-    bank: getBank(s.id, sem),
-    settle: getSettle(s.id, sem),
+    bank: getBank(s.id, effectiveSem),
+    settle: getSettle(s.id, effectiveSem, selectedPlan?.id),
     boundEmails: getBoundEmails(s.id),
   }))
 
   const semSchools = allSemSchools.filter(x => {
+    // 第5點：選計畫時只顯示有核定金額的學校
+    if (selectedPlan) {
+      const planSemToCheck = isFullYear ? effectiveSem : (selectedPlan.semester ?? 1)
+      const hasAmount = planAmounts.some(a => a.plan_id === selectedPlan.id && a.school_id === x.school.id && a.semester === planSemToCheck && a.amount > 0)
+      if (!hasAmount) return false
+    }
+    const matchZone = zoneFilter === null || x.school.zone_id === zoneFilter
     const matchDistrict = !districtFilter || x.school.district === districtFilter
     const matchSearch = !search || x.school.name.includes(search) || String(x.school.code).includes(search)
     const matchBind = bindFilter === 'all' ? true : bindFilter === 'done' ? x.boundEmails.length > 0 : x.boundEmails.length === 0
     const matchScan = scanFilter === 'all' ? true : scanFilter === 'done' ? !!x.settle?.scan_file_path : !x.settle?.scan_file_path
-    const matchRemit = sem !== 2 || remitFilter === 'all' ? true
+    const showRemitCol = selectedPlan
+      ? selectedPlan.require_repay && !(selectedPlan.deduct_s1_repay && effectiveSem === 1)
+      : effectiveSem === 2
+    const matchRemit = !showRemitCol || remitFilter === 'all' ? true
       : remitFilter === 'done' ? !!x.settle?.remittance_file_path : !x.settle?.remittance_file_path
-    return matchDistrict && matchSearch && matchBind && matchScan && matchRemit
+    return matchZone && matchDistrict && matchSearch && matchBind && matchScan && matchRemit
   })
 
+  // stats 用 semSchools（已過濾有核定金額的學校）
+  const statsBase = selectedPlan ? semSchools : allSemSchools
   const stats = {
-    boundCount: allSemSchools.filter(x => x.boundEmails.length > 0).length,
-    scanDone: allSemSchools.filter(x => x.settle?.scan_file_path).length,
-    remitDone: sem === 2 ? allSemSchools.filter(x => x.settle?.remittance_file_path).length : null,
-    totalApproved: allSemSchools.reduce((acc, x) => acc + (sem === 1 ? (x.amount?.sem1_amount || 0) : (x.amount?.sem2_amount || 0)), 0),
-    totalExpense: allSemSchools.reduce((acc, x) => acc + (x.settle?.total_expense || 0), 0),
-    totalSurplus: allSemSchools.reduce((acc, x) => acc + (x.settle?.repay_amount || 0), 0),
-    settledCount: allSemSchools.filter(x => (x.settle?.total_expense || 0) > 0).length,
+    boundCount: statsBase.filter(x => x.boundEmails.length > 0).length,
+    scanDone: statsBase.filter(x => x.settle?.scan_file_path).length,
+    remitDone: (selectedPlan ? selectedPlan.require_repay && !(selectedPlan.deduct_s1_repay && effectiveSem === 1) : effectiveSem === 2)
+      ? statsBase.filter(x => x.settle?.remittance_file_path).length : null,
+    totalApproved: selectedPlan
+      ? statsBase.reduce((acc, x) => {
+          const pa = planAmounts.filter(a => a.plan_id === selectedPlan.id && a.school_id === x.school.id)
+          return acc + (isFullYear
+            ? pa.find(a => a.semester === effectiveSem)?.amount || 0
+            : pa.find(a => a.semester === (selectedPlan.semester ?? 1))?.amount || 0)
+        }, 0)
+      : allSemSchools.reduce((acc, x) => acc + (effectiveSem === 1 ? (x.amount?.sem1_amount || 0) : (x.amount?.sem2_amount || 0)), 0),
+    totalExpense: statsBase.reduce((acc, x) => acc + (x.settle?.total_expense || 0), 0),
+    totalSurplus: selectedPlan
+      ? statsBase.reduce((acc, x) => {
+          const expense = x.settle?.total_expense || 0
+          if (expense <= 0) return acc  // 只計算已填寫實支金額的學校
+          const pSem = isFullYear ? effectiveSem : (selectedPlan.semester ?? 1)
+          const approved = planAmounts.find(a => a.plan_id === selectedPlan.id && a.school_id === x.school.id && a.semester === pSem)?.amount || 0
+          const surplus = approved > 0 ? approved - expense : 0
+          return acc + (surplus > 0 ? Math.ceil(surplus) : 0)
+        }, 0)
+      : statsBase.reduce((acc, x) => {
+          if (!x.settle || !(x.settle.total_expense > 0)) return acc
+          return acc + (x.settle.repay_amount || 0)
+        }, 0),
+    settledCount: statsBase.filter(x => (x.settle?.total_expense || 0) > 0).length,
   }
+
+  // 各計畫摘要（用於頂部摘要卡）
+  const planSummaries = plans.map(p => {
+    const pAmounts = planAmounts.filter(a => a.plan_id === p.id)
+    const totalAmt = pAmounts.reduce((acc, a) => acc + (a.amount || 0), 0)
+    const pSettles = settlements.filter(s => s.plan_id === p.id)
+    const schoolsWithAmount = schools.filter(sc => pAmounts.some(a => a.school_id === sc.id && (a.amount || 0) > 0))
+    const total = schoolsWithAmount.length
+    // 依學期計算各項完成數
+    const countBySem = (sem: number | null, check: (s: typeof pSettles[0]) => boolean) =>
+      pSettles.filter(s => (sem == null || s.semester === sem) && check(s)).length
+    // 依學期分別計算（全學年計畫會用 S1/S2 分開顯示）
+    const sems = p.semester == null ? [1, 2] : [p.semester]
+    const semStats = sems.map(sem => {
+      const semSettles = pSettles.filter(s => s.semester === sem)
+      const semSchools = schoolsWithAmount.filter(sc => pAmounts.some(a => a.school_id === sc.id && a.semester === sem && (a.amount || 0) > 0))
+      const semTotal = semSchools.length
+      const expDone = semSettles.filter(s => (s.total_expense || 0) > 0).length
+      const scanD = semSettles.filter(s => !!s.scan_file_path).length
+      const remitD = (p.require_repay && !(p.deduct_s1_repay && sem === 1))
+        ? semSettles.filter(s => !!s.remittance_file_path).length : null
+      return { sem, semTotal, expDone, scanD, remitD }
+    })
+    return { plan: p, totalAmt, total, semStats }
+  })
 
   const allChecked = semSchools.length > 0 && semSchools.every(x => selected.has(x.school.id))
   function toggleAll() {
@@ -265,26 +467,27 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   }
 
   async function exportExcel() {
-    const res = await fetch(`/api/admin/export?semester=${sem}&type=bank`)
+    const planParam = selectedPlan ? `&plan_id=${selectedPlan.id}` : ''
+    const res = await fetch(`/api/admin/export?semester=${effectiveSem}&type=bank${planParam}`)
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = `第${sem}學期_帳戶彙整.xlsx`; a.click()
+    const a = document.createElement('a'); a.href = url; a.download = `第${effectiveSem}學期_帳戶彙整.xlsx`; a.click()
   }
 
   function openSummaryPrint() {
     const totalA = schools.reduce((acc, s) => {
       const a = amounts.find(x => x.school_id === s.id)
-      return acc + (sem === 1 ? (a?.sem1_amount || 0) : (a?.sem2_amount || 0))
+      return acc + (effectiveSem === 1 ? (a?.sem1_amount || 0) : (a?.sem2_amount || 0))
     }, 0)
     const totalD = settlements
-      .filter(x => x.semester === sem)
+      .filter(x => x.semester === effectiveSem)
       .reduce((acc, x) => acc + (x.total_expense || 0), 0)
     const B = totalA
     const C = totalA > 0 ? B / totalA : 1
     const E = totalA - totalD
     const F = E > 0 ? Math.ceil(E * C) : 0
     const params = new URLSearchParams({
-      sem: String(sem),
+      sem: String(effectiveSem),
       A: String(totalA), B: String(B),
       C: String(C), D: String(totalD),
       E: String(E), F: String(F),
@@ -296,10 +499,11 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   }
 
   async function exportSurplus() {
-    const res = await fetch(`/api/admin/export?semester=${sem}&type=surplus`)
+    const planParam2 = selectedPlan ? `&plan_id=${selectedPlan.id}` : ''
+    const res = await fetch(`/api/admin/export?semester=${effectiveSem}&type=surplus${planParam2}`)
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = `第${sem}學期_賸餘款彙整.xlsx`; a.click()
+    const a = document.createElement('a'); a.href = url; a.download = `第${effectiveSem}學期_賸餘款彙整.xlsx`; a.click()
   }
 
   async function handleDeleteFile(settlementId: number, fileType: 'scan' | 'remittance') {
@@ -370,29 +574,84 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        {([1, 2] as const).map(s => (
-          <button key={s} onClick={() => { setSem(s); setSelected(new Set()) }}
-            className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer ${sem === s ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`}>
-            第{s}學期
-          </button>
-        ))}
-      </div>
+      {/* 計畫摘要卡（有計畫時顯示） */}
+      {hasPlans && planSummaries.length > 0 && (
+        <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${Math.min(planSummaries.length, 4)}, 1fr)` }}>
+          {planSummaries.map(({ plan, semStats }) => {
+            const isSelected = selectedPlanId === plan.id
+            const sel = isSelected
+            const isFullYearPlan = plan.semester == null
+            // 依當前有效學期顯示對應那筆 semStats（全學年計畫跟著 planSem 切換）
+            const activeSem = isFullYearPlan ? planSem : (plan.semester ?? 1)
+            const stat = semStats.find(s => s.sem === activeSem) ?? semStats[0]
+            if (!stat) return null
+            const { semTotal, expDone, scanD, remitD } = stat
+            const pct = semTotal > 0 ? Math.round(scanD / semTotal * 100) : 0
+            const row = (label: string, done: number) => (
+              <div className={`flex justify-between text-xs mt-0.5 ${sel ? 'text-blue-100' : 'text-gray-500'}`}>
+                <span>{label}</span>
+                <span className={`font-semibold ${done === semTotal && semTotal > 0 ? (sel ? 'text-green-300' : 'text-green-600') : ''}`}>{done}/{semTotal}</span>
+              </div>
+            )
+            return (
+              <button key={plan.id} onClick={() => { setSelectedPlanId(plan.id); setSelected(new Set()) }}
+                className={`rounded-xl p-3 text-left border transition-all cursor-pointer ${sel ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 hover:border-blue-300 hover:bg-blue-50'}`}>
+                <div className={`text-xs font-semibold ${sel ? 'text-blue-100' : 'text-gray-500'}`}>{plan.name}</div>
+                <div className={`font-mono text-xs mb-2 ${sel ? 'text-blue-200' : 'text-gray-400'}`}>{plan.label}</div>
+                <div className={`text-xl font-bold mb-0.5 ${sel ? 'text-white' : 'text-blue-700'}`}>{pct}%</div>
+                {row('實支已填', expDone)}
+                {row('結算表已傳', scanD)}
+                {remitD !== null && row('送款憑單', remitD)}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
-      {/* 統計卡 — 進度 */}
-      <div className={`grid gap-4 ${sem === 2 ? 'grid-cols-4' : 'grid-cols-3'}`}>
-        <StatCard label="帳號已綁定" value={stats.boundCount} total={schools.length} />
-        <StatCard label="實支金額已填" value={stats.settledCount} total={schools.length} />
-        <StatCard label="結算表已上傳" value={stats.scanDone} total={schools.length} />
-        {sem === 2 && <StatCard label="送款憑單已上傳" value={stats.remitDone!} total={schools.length} />}
-      </div>
+      {/* 全學年計畫的學期切換 */}
+      {hasPlans && isFullYear && selectedPlan && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-500">{selectedPlan.label}・選擇學期：</span>
+          {([1, 2] as const).map(s => (
+            <button key={s} onClick={() => { setPlanSem(s); setSelected(new Set()) }}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${planSem === s ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300'}`}>
+              第{s}學期
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 學期切換（無計畫時顯示） */}
+      {!hasPlans && (
+        <div className="flex items-center gap-2">
+          {([1, 2] as const).map(s => (
+            <button key={s} onClick={() => { setSem(s); setSelected(new Set()) }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer ${sem === s ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`}>
+              第{s}學期
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* 統計卡 — 進度（無計畫時才顯示個別進度卡） */}
+      {!hasPlans && (() => {
+        const showRemit = effectiveSem === 2
+        return (
+          <div className={`grid gap-4 ${showRemit ? 'grid-cols-4' : 'grid-cols-3'}`}>
+            <StatCard label="帳號已綁定" value={stats.boundCount} total={schools.length} />
+            <StatCard label="實支金額已填" value={stats.settledCount} total={schools.length} />
+            <StatCard label="結算表已上傳" value={stats.scanDone} total={schools.length} />
+            {showRemit && <StatCard label="送款憑單已上傳" value={stats.remitDone!} total={schools.length} />}
+          </div>
+        )
+      })()}
 
       {/* 統計卡 — 金額摘要 */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-blue-50 rounded-xl border border-blue-100 p-4">
           <p className="text-xs text-blue-500 font-medium">本學期核定總額</p>
           <p className="text-lg font-bold text-blue-700 mt-1">NT$ {formatAmount(stats.totalApproved)}</p>
-          <p className="text-xs text-blue-400">{schools.length} 校</p>
+          <p className="text-xs text-blue-400">{statsBase.length} 校</p>
         </div>
         <div className="bg-green-50 rounded-xl border border-green-100 p-4">
           <p className="text-xs text-green-600 font-medium">已核銷實支合計</p>
@@ -412,9 +671,16 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
 
       {/* 工具列 */}
       <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-center">
+        {zoneIds.length > 1 && (
+          <select value={zoneFilter ?? ''} onChange={e => setZoneFilter(e.target.value === '' ? null : Number(e.target.value))}
+            className="border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">全部分區</option>
+            {zoneIds.map(id => <option key={id} value={id}>{zonesMap[id] || `分區 ${id}`}</option>)}
+          </select>
+        )}
         <select value={districtFilter} onChange={e => setDistrictFilter(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">全部區別</option>
+          <option value="">全部行政區</option>
           {districts.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
 
@@ -422,10 +688,29 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
           placeholder="搜尋學校名稱或編號..."
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48 outline-none focus:ring-2 focus:ring-blue-500" />
 
-        <a href={`/api/admin/export-remittance?semester=${sem}`}
-          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
-          📋 匯款清冊
-        </a>
+        <div className="relative">
+          <button onClick={() => setShowRemittanceMenu(v => !v)}
+            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer flex items-center gap-1.5">
+            📋 匯款清冊 ▾
+          </button>
+          {showRemittanceMenu && (
+            <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[160px] py-1"
+              onMouseLeave={() => setShowRemittanceMenu(false)}>
+              {[
+                { label: '全部', bank: '' },
+                { label: '臺灣銀行', bank: 'taiwan' },
+                { label: '非臺灣銀行', bank: 'other' },
+              ].map(({ label, bank }) => (
+                <a key={bank}
+                  href={`/api/admin/export-remittance?semester=${effectiveSem}${selectedPlan ? `&plan_id=${selectedPlan.id}` : ''}${bank ? `&bank=${bank}` : ''}`}
+                  onClick={() => setShowRemittanceMenu(false)}
+                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-teal-50 hover:text-teal-700 cursor-pointer">
+                  {label}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
 
         <button onClick={exportSurplus}
           className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
@@ -437,8 +722,8 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
           📑 經費收支結算表
         </button>
 
-        {driveFolderId ? (
-          <a href={`https://drive.google.com/drive/folders/${driveFolderId}`} target="_blank" rel="noopener noreferrer"
+        {(driveFolderUrl || driveFolderId) ? (
+          <a href={driveFolderUrl || `https://drive.google.com/drive/folders/${driveFolderId}`} target="_blank" rel="noopener noreferrer"
             className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium">
             ☁️ 雲端資料夾
           </a>
@@ -446,6 +731,12 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
           <span className="bg-gray-300 text-gray-500 px-4 py-2 rounded-lg text-sm font-medium cursor-default" title="請先在系統設定填入 Google Drive 資料夾 ID">
             ☁️ 雲端資料夾
           </span>
+        )}
+        {isSuperAdmin && driveFolderId && (
+          <button onClick={handleInitFolders} disabled={initingFolders}
+            className="bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
+            {initingFolders ? '建立中…' : '📁 初始化資料夾'}
+          </button>
         )}
 
         {selected.size > 0 && (
@@ -474,11 +765,12 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
               <th className="text-center px-4 py-3 text-gray-600 font-medium">
                 結算表 <FilterSelect value={scanFilter} onChange={setScanFilter} />
               </th>
-              {sem === 2 && (
+              {(selectedPlan ? selectedPlan.require_repay && !(selectedPlan.deduct_s1_repay && effectiveSem === 1) : sem === 2) && (
                 <th className="text-center px-4 py-3 text-gray-600 font-medium">
                   送款憑單 <FilterSelect value={remitFilter} onChange={setRemitFilter} />
                 </th>
               )}
+              <th className="text-right px-4 py-3 text-gray-600 font-medium">實支金額</th>
               <th className="text-right px-4 py-3 text-gray-600 font-medium">應繳回</th>
             </tr>
           </thead>
@@ -492,7 +784,9 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
                 <td className="px-4 py-3 font-medium text-gray-800">{school.name}</td>
                 <td className="px-4 py-3 text-gray-500">{school.district}</td>
                 <td className="px-4 py-3 text-right text-gray-700">
-                  {formatAmount(sem === 1 ? (amount?.sem1_amount || 0) : (amount?.sem2_amount || 0))}
+                  {formatAmount(selectedPlan
+                    ? (planAmounts.find(a => a.plan_id === selectedPlan.id && a.school_id === school.id && a.semester === (isFullYear ? effectiveSem : (selectedPlan.semester ?? 1)))?.amount || 0)
+                    : (effectiveSem === 1 ? (amount?.sem1_amount || 0) : (amount?.sem2_amount || 0)))}
                 </td>
                 <td className="px-4 py-3 text-center">
                   {boundEmails.length > 0 ? (
@@ -519,7 +813,7 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
                 </td>
                 <td className="px-4 py-3 text-center">
                   {(() => {
-                    const pendingScan = settleRequests.find(r => r.school_id === school.id && r.semester === sem && (r.request_type === 'scan_upload' || r.request_type === 'scan_reupload') && r.status === 'pending')
+                    const pendingScan = settleRequests.find(r => r.school_id === school.id && (selectedPlan ? r.plan_id === selectedPlan.id : r.semester === sem) && (r.request_type === 'scan_upload' || r.request_type === 'scan_reupload') && r.status === 'pending')
                     return (
                       <div className="flex flex-col items-center gap-0.5">
                         {settle?.scan_file_path ? (
@@ -545,13 +839,22 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
                     )
                   })()}
                 </td>
-                {sem === 2 && (
+                {(selectedPlan ? selectedPlan.require_repay && !(selectedPlan.deduct_s1_repay && effectiveSem === 1) : effectiveSem === 2) && (
                   <td className="px-4 py-3 text-center">
                     {(() => {
-                      const pendingRemit = settleRequests.find(r => r.school_id === school.id && r.semester === sem && (r.request_type === 'remittance_upload' || r.request_type === 'remittance_reupload') && r.status === 'pending')
+                      const pendingRemit = settleRequests.find(r => r.school_id === school.id && (selectedPlan ? r.plan_id === selectedPlan.id : r.semester === sem) && (r.request_type === 'remittance_upload' || r.request_type === 'remittance_reupload') && r.status === 'pending')
                       return (
                         <div className="flex flex-col items-center gap-0.5">
-                          {(settle?.surplus || 0) > 0
+                          {(() => {
+                            // 動態計算結餘，避免依賴 DB 存的舊值
+                            let dynamicSurplus = settle?.surplus || 0
+                            if (selectedPlan && settle) {
+                              const pSem = isFullYear ? effectiveSem : (selectedPlan.semester ?? 1)
+                              const approved = planAmounts.find(a => a.plan_id === selectedPlan.id && a.school_id === school.id && a.semester === pSem)?.amount || 0
+                              if (approved > 0) dynamicSurplus = approved - (settle.total_expense || 0)
+                            }
+                            return dynamicSurplus > 0 || settle?.remittance_file_path || pendingRemit
+                          })()
                             ? settle?.remittance_file_path
                               ? <div className="flex flex-col items-center gap-0.5">
                                   <div className="flex items-center gap-1">
@@ -582,10 +885,25 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
                   </td>
                 )}
                 <td className="px-4 py-3 text-right">
-                  {(settle?.repay_amount || 0) > 0
-                    ? <span className="text-red-600 font-medium">{formatAmount(settle!.repay_amount)}</span>
-                    : <span className="text-gray-300">-</span>
-                  }
+                  {settle?.total_expense
+                    ? <span className="text-gray-700">{formatAmount(settle.total_expense)}</span>
+                    : <span className="text-gray-300">-</span>}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {(() => {
+                    // 計畫模式：動態計算結餘，不依賴 DB 儲存的舊值
+                    let repay = settle?.repay_amount || 0
+                    if (selectedPlan && settle) {
+                      const pSem = isFullYear ? effectiveSem : (selectedPlan.semester ?? 1)
+                      const approved = planAmounts.find(a => a.plan_id === selectedPlan.id && a.school_id === school.id && a.semester === pSem)?.amount || 0
+                      const expense = settle.total_expense || 0
+                      const surplus = approved > 0 ? approved - expense : 0
+                      repay = surplus > 0 ? Math.ceil(surplus) : 0
+                    }
+                    return repay > 0
+                      ? <span className="text-red-600 font-medium">{formatAmount(repay)}</span>
+                      : <span className="text-gray-300">-</span>
+                  })()}
                 </td>
               </tr>
             ))}
@@ -640,17 +958,18 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
 }
 
 // ── 申請審核頁籤 ───────────────────────────────────────────
-function ReviewTab({ activeSchoolYear, schools, profiles, contacts, onReviewDone }: {
+function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onReviewDone }: {
   activeSchoolYear: string
   schools: School[]
   profiles: ProfileRow[]
   contacts: Record<string, ContactInfo>
+  plans: Plan[]
   onReviewDone: () => void
 }) {
   interface ChangeRequest { school_id: number; school_name: string; school_code: number; school_year: string; status: string; new_info: Record<string, string>; file_id: string; submitted_at: string; admin_note: string }
   interface SettleReq {
-    id: string; school_id: number; semester: number; request_type: string
-    new_amount: number | null; reason: string; status: string; created_at: string
+    id: string; school_id: number; semester: number; plan_id: string | null; plan_label: string | null
+    request_type: string; new_amount: number | null; reason: string; status: string; created_at: string
     pending_file_path: string | null; existing_file_path: string | null
     existing_amount: number | null; approved_amount: number | null
     actual_expense: number | null; surplus: number | null
@@ -664,6 +983,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, onReviewDone
   const [reviewing, setReviewing] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [subTab, setSubTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
+  const [planFilter, setPlanFilter] = useState<string | null>(null) // null = 全部計畫
 
   function load() {
     setLoading(true)
@@ -719,15 +1039,23 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, onReviewDone
 
   if (loading) return <BlockSpinner />
 
-  // 依子分頁過濾
-  const filteredAccount = accountRequests.filter(r =>
-    subTab === 'pending' ? r.status === 'pending' :
-    subTab === 'approved' ? r.status === 'approved' : r.status === 'rejected'
-  )
-  const filteredSettle = settleReqs.filter(r =>
-    subTab === 'pending' ? r.status === 'pending' :
-    subTab === 'approved' ? r.status === 'approved' : r.status === 'rejected'
-  )
+  // 依子分頁 + 計畫 過濾
+  const filteredSettle = settleReqs.filter(r => {
+    const matchStatus = subTab === 'pending' ? r.status === 'pending' :
+      subTab === 'approved' ? r.status === 'approved' : r.status === 'rejected'
+    const matchPlan = planFilter === null
+      ? true
+      : planFilter === '__no_plan__'
+        ? !r.plan_id
+        : r.plan_id === planFilter
+    return matchStatus && matchPlan
+  })
+  // 帳戶變更申請有計畫過濾時隱藏（帳戶申請無 plan_id 概念）
+  const filteredAccount = accountRequests.filter(r => {
+    if (planFilter !== null && planFilter !== '__no_plan__') return false
+    return subTab === 'pending' ? r.status === 'pending' :
+      subTab === 'approved' ? r.status === 'approved' : r.status === 'rejected'
+  })
   const isEmpty = filteredAccount.length === 0 && filteredSettle.length === 0
 
   const approvedCount = accountRequests.filter(r => r.status === 'approved').length + settleReqs.filter(r => r.status === 'approved').length
@@ -751,6 +1079,39 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, onReviewDone
         </button>
         <button onClick={load} className="ml-auto text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 cursor-pointer">↻ 重新整理</button>
       </div>
+
+      {/* 計畫篩選（有計畫時顯示） */}
+      {plans.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {(() => {
+            const countForPlan = (planId: string | null) => settleReqs.filter(r => {
+              const matchStatus = subTab === 'pending' ? r.status === 'pending' : subTab === 'approved' ? r.status === 'approved' : r.status === 'rejected'
+              const matchPlan = planId === null ? true : r.plan_id === planId
+              return matchStatus && matchPlan
+            }).length
+            const allCount = countForPlan(null)
+            return (
+              <>
+                <button onClick={() => setPlanFilter(null)}
+                  className={`px-3 py-1 text-xs rounded-lg cursor-pointer border transition-colors flex items-center gap-1.5 ${planFilter === null ? 'bg-gray-700 text-white border-gray-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                  全部計畫
+                  {allCount > 0 && <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${planFilter === null ? 'bg-white text-gray-700' : 'bg-gray-100 text-gray-600'}`}>{allCount}</span>}
+                </button>
+                {plans.map(p => {
+                  const cnt = countForPlan(p.id)
+                  return (
+                    <button key={p.id} onClick={() => setPlanFilter(p.id)}
+                      className={`px-3 py-1 text-xs rounded-lg cursor-pointer border transition-colors flex items-center gap-1.5 ${planFilter === p.id ? 'bg-gray-700 text-white border-gray-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                      {p.label}
+                      {cnt > 0 && <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${planFilter === p.id ? 'bg-white text-gray-700' : 'bg-gray-100 text-gray-600'}`}>{cnt}</span>}
+                    </button>
+                  )
+                })}
+              </>
+            )
+          })()}
+        </div>
+      )}
 
       {/* 帳戶變更申請 */}
       {filteredAccount.length > 0 && (
@@ -820,7 +1181,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, onReviewDone
                       </span>
                     </div>
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isFirstUpload ? 'bg-blue-100 text-blue-700' : 'bg-violet-100 text-violet-700'}`}>
-                      第{req.semester}學期
+                      {req.plan_label ? `${req.plan_label}・第${req.semester}學期` : `第${req.semester}學期`}
                     </span>
                   </div>
                   {isFile && (

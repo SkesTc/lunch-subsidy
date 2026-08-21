@@ -1,5 +1,5 @@
 'use client'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams, useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { formatAmount } from '@/lib/utils'
@@ -7,6 +7,11 @@ import { Spinner } from '@/components/Spinner'
 
 export default function RemittancePage() {
   const router = useRouter()
+  const { sem } = useParams<{ sem: string }>()
+  const semester = Number(sem) || 2
+  const searchParams = useSearchParams()
+  const planId = searchParams.get('plan_id') || null
+  const [statusLoading, setStatusLoading] = useState(true)
   const [file, setFile] = useState<File | null>(null)
   const [date, setDate] = useState('')
   const [repayAmount, setRepayAmount] = useState(0)
@@ -33,7 +38,8 @@ export default function RemittancePage() {
   }
 
   useEffect(() => {
-    fetch('/api/school/status?semester=2').then(r => r.json()).then(({ settlement, pendingRequests }) => {
+    const statusUrl = planId ? `/api/school/status?semester=${semester}&plan_id=${planId}` : `/api/school/status?semester=${semester}`
+    fetch(statusUrl).then(r => r.json()).then(({ settlement, pendingRequests }) => {
       if (settlement) {
         setRepayAmount(settlement.repay_amount || 0)
         if (settlement.remittance_file_path) setExistingPath(settlement.remittance_file_path)
@@ -44,7 +50,7 @@ export default function RemittancePage() {
         setPendingUpload(pending.some((r: { request_type: string }) => r.request_type === 'remittance_upload'))
         setHasPendingRequest(pending.some((r: { request_type: string }) => r.request_type === 'remittance_reupload'))
       }
-    }).catch(() => {})
+    }).catch(() => {}).finally(() => setStatusLoading(false))
   }, [])
 
   async function handleUpload() {
@@ -53,11 +59,12 @@ export default function RemittancePage() {
     setUploading(true); setError('')
     const fd = new FormData()
     fd.append('file', file)
-    fd.append('semester', '2')
+    fd.append('semester', String(semester))
     fd.append('type', 'remittance')
     fd.append('remittance_date', date)
+    if (planId) fd.append('plan_id', planId)
     const res = await fetch('/api/upload', { method: 'POST', body: fd })
-    if (res.ok) { setDone(true) } else { setError('上傳失敗，請再試一次') }
+    if (res.ok) { setDone(true); setPendingUpload(true) } else { const d = await res.json().catch(() => ({})); setError(d.error || '上傳失敗，請再試一次') }
     setUploading(false)
   }
 
@@ -68,9 +75,10 @@ export default function RemittancePage() {
     setSubmitting(true); setReasonError('')
     const fd = new FormData()
     fd.append('file', modalFile)
-    fd.append('semester', '2')
+    fd.append('semester', String(semester))
     fd.append('type', 'remittance')
     fd.append('reason', reason)
+    if (planId) fd.append('plan_id', planId)
     const res = await fetch('/api/upload/reupload-request', { method: 'POST', body: fd })
     const data = await res.json()
     if (res.ok) {
@@ -91,6 +99,12 @@ export default function RemittancePage() {
   }
 
   const isLocked = !!existingPath && !pendingUpload
+
+  if (statusLoading) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <span className="w-8 h-8 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -120,7 +134,7 @@ export default function RemittancePage() {
               <div className="text-4xl">📨</div>
               <p className="font-semibold text-amber-700">憑單已上傳，待審核中</p>
               <p className="text-sm text-amber-600">承辦學校審核通過後即生效，請靜候通知</p>
-              <button onClick={() => router.push('/school')}
+              <button onClick={() => { router.refresh(); router.push('/school') }}
                 className="mt-2 bg-amber-600 text-white px-6 py-2 rounded-lg text-sm hover:bg-amber-700 cursor-pointer">
                 返回首頁
               </button>

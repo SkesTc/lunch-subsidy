@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth'
+import { getEffectiveSchoolId } from '@/lib/impersonate'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getAllSettings } from '@/lib/settings'
 import { NextResponse } from 'next/server'
@@ -11,7 +12,9 @@ const BUCKET = 'settlement-files'
  */
 export async function GET() {
   const session = await auth()
-  if (!session?.user?.school_id) return NextResponse.json({ error: '未登入' }, { status: 401 })
+  if (!session?.user?.email) return NextResponse.json({ error: '未登入' }, { status: 401 })
+  const schoolId = await getEffectiveSchoolId(session)
+  if (!schoolId) return NextResponse.json({ error: '未綁定學校' }, { status: 401 })
 
   const settings = await getAllSettings()
   const schoolYear = (settings.active_school_year || settings.school_year || '115') as string
@@ -21,13 +24,13 @@ export async function GET() {
     supabaseAdmin
       .from('bank_accounts')
       .select('id, school_id, semester, bank_name, branch_name, bank_code, account_name, account_number, confirmed_at, is_modified, is_preloaded')
-      .eq('school_id', session.user.school_id)
+      .eq('school_id', schoolId)
       .eq('semester', 1)
       .eq('school_year', schoolYear)
       .single(),
     (async () => {
       try {
-        const path = `__account-changes/${session.user.school_id}_${schoolYear}.json`
+        const path = `__account-changes/${schoolId}_${schoolYear}.json`
         const { data } = await supabaseAdmin.storage.from(BUCKET).download(path)
         if (data) return JSON.parse(await data.text())
       } catch { /* no request yet */ }

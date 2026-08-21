@@ -1,7 +1,11 @@
 import { supabaseAdmin } from '@/lib/supabase'
+import { getZoneSettings } from '@/lib/zones'
 
 const BUCKET = 'settlement-files'
 const PATH = '__system/settings.json'
+
+// 預設區別 ID（第2區），未來從 request context 取得
+const DEFAULT_ZONE_ID = 2
 
 export interface AllSettings {
   system_name: string
@@ -62,10 +66,27 @@ const DEFAULTS: AllSettings = {
 
 // 模組層級快取，TTL 60 秒
 let _cache: { data: AllSettings; ts: number } | null = null
-const TTL = 60_000
+const TTL = 8_000
 
-async function fetchSettings(): Promise<AllSettings> {
+async function fetchSettings(zoneId = DEFAULT_ZONE_ID): Promise<AllSettings> {
   try {
+    // 先嘗試從 zone_settings 讀取（新架構）
+    const zoneSettingsData = await getZoneSettings(zoneId)
+    if (Object.keys(zoneSettingsData).length > 0) {
+      // 也讀 settings.json 取得 school_years 等複雜結構
+      let jsonSettings: Partial<AllSettings> = {}
+      try {
+        const { data } = await supabaseAdmin.storage.from(BUCKET).download(PATH)
+        if (data) jsonSettings = JSON.parse(await data.text())
+      } catch { /* 忽略 */ }
+      // 空字串視為未設定，讓 settings.json 的值可以補上
+      const filtered = Object.fromEntries(
+        Object.entries(zoneSettingsData).filter(([, v]) => v !== undefined && v !== '')
+      )
+      return { ...DEFAULTS, ...jsonSettings, ...filtered } as AllSettings
+    }
+
+    // Fallback：從 settings.json 讀取（舊架構向下相容）
     const { data } = await supabaseAdmin.storage.from(BUCKET).download(PATH)
     if (data) {
       const parsed = JSON.parse(await data.text())
@@ -75,12 +96,21 @@ async function fetchSettings(): Promise<AllSettings> {
   return { ...DEFAULTS }
 }
 
-/** 統一入口：所有設定從這裡取，60 秒快取 */
-export async function getAllSettings(): Promise<AllSettings> {
+async function fetchSettingsForZone(zoneId: number): Promise<AllSettings> {
+  return fetchSettings(zoneId)
+}
+
+/** 統一入口：所有設定從這裡取，快取 */
+export async function getAllSettings(zoneId = DEFAULT_ZONE_ID): Promise<AllSettings> {
   if (_cache && Date.now() - _cache.ts < TTL) return _cache.data
-  const data = await fetchSettings()
+  const data = await fetchSettings(zoneId)
   _cache = { data, ts: Date.now() }
   return data
+}
+
+/** 依區別取設定（不走快取，供後台管理使用） */
+export async function getSettingsForZone(zoneId: number): Promise<AllSettings> {
+  return fetchSettingsForZone(zoneId)
 }
 
 /** 讓外部可以主動清除快取（儲存設定後呼叫） */

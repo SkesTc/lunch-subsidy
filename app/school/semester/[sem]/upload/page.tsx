@@ -1,5 +1,5 @@
 'use client'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Spinner } from '@/components/Spinner'
@@ -13,7 +13,10 @@ function fileViewUrl(path: string) {
 export default function UploadPage() {
   const { sem } = useParams<{ sem: string }>()
   const semester = Number(sem) as 1 | 2
+  const searchParams = useSearchParams()
+  const planId = searchParams.get('plan_id') || null
   const router = useRouter()
+  const [statusLoading, setStatusLoading] = useState(true)
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [done, setDone] = useState(false)
@@ -33,15 +36,16 @@ export default function UploadPage() {
   const [requestDone, setRequestDone] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/school/status?semester=${semester}`).then(r => r.json()).then(({ settlement, pendingRequests }) => {
+    const statusUrl = planId ? `/api/school/status?semester=${semester}&plan_id=${planId}` : `/api/school/status?semester=${semester}`
+    fetch(statusUrl).then(r => r.json()).then(({ settlement, pendingRequests }) => {
       if (settlement?.scan_file_path) setExistingPath(settlement.scan_file_path)
       if (Array.isArray(pendingRequests)) {
         const pending = pendingRequests.filter((r: { status: string }) => r.status === 'pending')
         setPendingUpload(pending.some((r: { request_type: string }) => r.request_type === 'scan_upload'))
         setPendingReupload(pending.some((r: { request_type: string }) => r.request_type === 'scan_reupload'))
       }
-    }).catch(() => {})
-  }, [semester])
+    }).catch(() => {}).finally(() => setStatusLoading(false))
+  }, [semester, planId])
 
   async function handleUpload() {
     if (!file) return
@@ -51,8 +55,9 @@ export default function UploadPage() {
     fd.append('file', file)
     fd.append('semester', String(semester))
     fd.append('type', 'settlement')
+    if (planId) fd.append('plan_id', planId)
     const res = await fetch('/api/upload', { method: 'POST', body: fd })
-    if (res.ok) { setDone(true) }
+    if (res.ok) { setDone(true); setPendingUpload(true) }
     else { const d = await res.json().catch(() => ({})); setError(d.error || '上傳失敗，請再試一次') }
     setUploading(false)
   }
@@ -67,6 +72,7 @@ export default function UploadPage() {
     fd.append('semester', String(semester))
     fd.append('type', 'settlement')
     fd.append('reason', reason)
+    if (planId) fd.append('plan_id', planId)
     const res = await fetch('/api/upload/reupload-request', { method: 'POST', body: fd })
     const data = await res.json()
     if (res.ok) { setRequestDone(true); setPendingReupload(true) }
@@ -79,6 +85,12 @@ export default function UploadPage() {
   }
 
   const viewUrl = existingPath ? fileViewUrl(existingPath) : null
+
+  if (statusLoading) return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <span className="w-8 h-8 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -101,7 +113,7 @@ export default function UploadPage() {
               <div className="text-4xl">📨</div>
               <p className="font-semibold text-amber-700">檔案已上傳，待審核中</p>
               <p className="text-sm text-amber-600">承辦學校審核通過後即生效，請靜候通知</p>
-              <button onClick={() => router.push('/school')}
+              <button onClick={() => { router.refresh(); router.push('/school') }}
                 className="mt-2 bg-amber-600 text-white px-6 py-2 rounded-lg text-sm hover:bg-amber-700 cursor-pointer">
                 返回首頁
               </button>

@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { formatAmount, calcRatio, calcSurplus, calcRepay, semLabel, toChineseAmount, parseInputAmount, formatInputDisplay } from '@/lib/utils'
 import LoadingSpinner from '@/components/LoadingSpinner'
@@ -12,18 +12,25 @@ interface AmountInfo { sem1_amount: number; sem2_amount: number }
 export default function SettlementPage() {
   const { sem } = useParams<{ sem: string }>()
   const semester = Number(sem) as 1 | 2
+  const searchParams = useSearchParams()
+  const planId = searchParams.get('plan_id') || null
   const router = useRouter()
   const [school, setSchool] = useState<SchoolInfo | null>(null)
   const [amountInfo, setAmountInfo] = useState<AmountInfo | null>(null)
+  const [planAmount, setPlanAmount] = useState<number | null>(null)
+  const [planLabel, setPlanLabel] = useState<string | null>(null)
+  const [sem1Repay, setSem1Repay] = useState<number | null>(null)
   const [businessRaw, setBusinessRaw] = useState('')
   const [existing, setExisting] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [downloading, setDownloading] = useState(false)
   const [focused, setFocused] = useState(false)
   const [schoolYear, setSchoolYear] = useState('115')
   const [settingPlanName, setSettingPlanName] = useState('')
   const [isLocked, setIsLocked] = useState(false)
+  const [zoneName, setZoneName] = useState('')
 
   // 申請修改 modal
   const [showModifyModal, setShowModifyModal] = useState(false)
@@ -35,23 +42,33 @@ export default function SettlementPage() {
   const [modifyDone, setModifyDone] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/school/settlement-data?semester=${semester}`)
+    const url = planId
+      ? `/api/school/settlement-data?semester=${semester}&plan_id=${planId}`
+      : `/api/school/settlement-data?semester=${semester}`
+    fetch(url)
       .then(r => r.json())
-      .then(({ school: s, settlement: st, amounts: amt, schoolYear: sy, planName }) => {
+      .then((data: { school: SchoolInfo; settlement: { business_expense?: number; amount_locked?: boolean; status?: string } | null; amounts: AmountInfo | null; schoolYear: string; planName?: string; planLabel?: string; planAmount?: number; sem1Repay?: number; zoneName?: string }) => {
+        const { school: s, settlement: st, amounts: amt, schoolYear: sy, planName, planLabel: pl, planAmount: pa, zoneName: zn } = data
         setSchool(s)
+        if (zn) setZoneName(zn)
         if (st?.business_expense) setBusinessRaw(String(st.business_expense))
         setExisting(st)
         setIsLocked(st?.amount_locked === true)
         if (sy) setSchoolYear(sy)
         if (planName) setSettingPlanName(planName)
         if (amt) setAmountInfo(amt)
+        if (pl) setPlanLabel(pl)
+        if (pa !== null && pa !== undefined) setPlanAmount(pa)
+        if (data.sem1Repay !== null && data.sem1Repay !== undefined) setSem1Repay(data.sem1Repay)
         setLoading(false)
       })
-  }, [semester])
+  }, [semester, planId])
 
   if (loading || !school) return <LoadingSpinner />
 
-  const approvedAmount = semester === 1 ? (amountInfo?.sem1_amount || 0) : (amountInfo?.sem2_amount || 0)
+  const approvedAmount = planAmount !== null
+    ? planAmount
+    : (semester === 1 ? (amountInfo?.sem1_amount || 0) : (amountInfo?.sem2_amount || 0))
   const b = parseInputAmount(businessRaw)
   const D = b
   const A = approvedAmount
@@ -67,7 +84,7 @@ export default function SettlementPage() {
     const params = new URLSearchParams({
       sem: String(semester),
       schoolName: school.name,
-      schoolCode: String(school.code),
+      schoolCode: zoneName ? `${zoneName}-${String(school.code).padStart(3, '0')}` : String(school.code),
       schoolYear,
       A: String(A), B: String(B), C: String(C),
       D: String(D), E: String(E), F: String(F),
@@ -78,15 +95,22 @@ export default function SettlementPage() {
   }
 
   async function handleSave() {
+    setSaveError('')
+    if (b <= 0) { setSaveError('請輸入實支金額'); return }
+    if (b > A) { setSaveError(`實支金額（${formatAmount(b)}）超過核定金額（${formatAmount(A)}），無法儲存`); return }
     setSaving(true)
     const res = await fetch('/api/settlement', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ semester, personnel_expense: 0, business_expense: b, equipment_expense: 0 }),
+      body: JSON.stringify({ semester, personnel_expense: 0, business_expense: b, equipment_expense: 0, ...(planId ? { plan_id: planId } : {}) }),
     })
     if (res.ok) {
       setExisting((prev: any) => ({ ...prev, business_expense: b, amount_locked: true }))
       setIsLocked(true)
+      router.refresh()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setSaveError(d.error || '儲存失敗，請重試')
     }
     setSaving(false)
   }
@@ -100,12 +124,13 @@ export default function SettlementPage() {
   async function handleModifySubmit() {
     const amt = parseInputAmount(modifyAmount)
     if (amt <= 0) { setModifyError('請輸入正確的金額'); return }
+    if (amt > A) { setModifyError(`申請金額（${formatAmount(amt)}）不可超過核定金額（${formatAmount(A)}）`); return }
     if (!modifyReason.trim()) { setModifyError('請填寫修改原因'); return }
     setModifySubmitting(true); setModifyError('')
     const res = await fetch('/api/settlement/change-request', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ semester, new_amount: amt, reason: modifyReason }),
+      body: JSON.stringify({ semester, ...(planId ? { plan_id: planId } : {}), new_amount: amt, reason: modifyReason }),
     })
     const data = await res.json()
     if (res.ok) {
@@ -130,17 +155,23 @@ export default function SettlementPage() {
         <div className="mb-6 flex items-center gap-2">
           <Link href="/school" className="text-blue-600 hover:underline text-sm">← 返回首頁</Link>
           <span className="text-gray-400">/</span>
-          <span className="text-sm text-gray-600">第{semester}學期・填寫實支金額</span>
+          <span className="text-sm text-gray-600">{planLabel || `第${semester}學期`}・填寫實支金額</span>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 space-y-6">
           <div>
             <h1 className="text-xl font-bold text-gray-800">填寫實支金額</h1>
-            <p className="text-sm text-gray-500 mt-1">{semLabel(semester)}・{school.name}</p>
+            <p className="text-sm text-gray-500 mt-1">{planLabel || semLabel(semester)}・{school.name}</p>
           </div>
 
           {/* 核定金額（唯讀） */}
           <div className="bg-blue-50 rounded-xl p-4 space-y-2 text-sm">
+            {sem1Repay !== null && sem1Repay > 0 && (
+              <div className="text-xs bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-orange-700 mb-1">
+                第1學期結餘款 NT$ {formatAmount(sem1Repay)} 將從本學期撥款中扣除<br />
+                <span className="font-semibold">淨撥款金額：NT$ {formatAmount(A - sem1Repay)}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-blue-700 font-medium">A. 核定計畫金額</span>
               <div className="text-right">
@@ -194,6 +225,9 @@ export default function SettlementPage() {
                   placeholder="0"
                 />
                 {b > 0 && <p className="text-xs text-gray-400 mt-1 text-right">{toChineseAmount(b)}</p>}
+                {b > A && A > 0 && (
+                  <p className="text-xs text-red-600 mt-1 font-medium">⚠️ 實支金額超過核定金額，無法儲存</p>
+                )}
               </div>
             )}
           </div>
@@ -233,10 +267,15 @@ export default function SettlementPage() {
 
           {/* 按鈕區 */}
           <div className="space-y-3">
+            {saveError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 font-medium">
+                ⚠️ {saveError}
+              </div>
+            )}
             {!isLocked && (
               <button
                 onClick={handleSave}
-                disabled={saving || D === 0}
+                disabled={saving || D === 0 || b > A}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-medium py-3 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed"
               >
                 {saving ? <span className="flex items-center justify-center gap-2"><Spinner /> 儲存中...</span> : '儲存'}

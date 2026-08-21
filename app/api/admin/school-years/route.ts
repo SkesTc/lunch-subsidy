@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getAllSettings, invalidateSettingsCache } from '@/lib/settings'
+import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 
@@ -42,14 +43,19 @@ export async function GET() {
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
+  const zoneUser = await getUserZoneRole(session.user.email!)
+  if (!zoneUser || !isSuperAdmin(zoneUser)) return NextResponse.json({ error: '僅限超級管理者' }, { status: 403 })
 
   const { action, schoolYear } = await req.json()
   const settings = await getAllSettings()
 
   if (action === 'switch') {
+    if (!schoolYear || !/^\d{3}$/.test(schoolYear))
+      return NextResponse.json({ error: '學年度格式錯誤' }, { status: 400 })
+    // 自動補入 school_years 清單（防止 DB 查到的學年度切換失敗）
     const years: string[] = Array.isArray(settings.school_years) ? settings.school_years : ['115']
-    if (!years.includes(schoolYear)) return NextResponse.json({ error: '學年度不存在' }, { status: 400 })
-    await writeSettings({ ...settings, active_school_year: schoolYear, school_year: schoolYear })
+    const updatedYears = years.includes(schoolYear) ? years : [...years, schoolYear].sort()
+    await writeSettings({ ...settings, school_years: updatedYears, active_school_year: schoolYear, school_year: schoolYear })
     return NextResponse.json({ ok: true })
   }
 
@@ -72,15 +78,22 @@ export async function POST(req: Request) {
       { data: banks },
       { data: settlements },
       { data: accounts },
+      { data: planAmounts },
     ] = await Promise.all([
       supabaseAdmin.from('schools').select('id, code, district, name, is_active').order('code'),
       supabaseAdmin.from('school_amounts').select('school_id, school_year, sem1_amount, sem2_amount, approved_total').eq('school_year', schoolYear),
       supabaseAdmin.from('bank_accounts').select('school_id, semester, school_year, bank_name, branch_name, bank_code, account_name, account_number, confirmed_at, is_modified').eq('school_year', schoolYear),
-      supabaseAdmin.from('settlements').select('school_id, semester, school_year, status, personnel_expense, business_expense, equipment_expense, total_expense, surplus, repay_amount, scan_file_path, remittance_file_path, remittance_date').eq('school_year', schoolYear),
+      supabaseAdmin.from('settlements').select('school_id, plan_id, semester, school_year, status, personnel_expense, business_expense, equipment_expense, total_expense, surplus, repay_amount, scan_file_path, remittance_file_path, remittance_date').eq('school_year', schoolYear),
       supabaseAdmin.from('profiles').select('email, is_admin, school_id, created_at').order('created_at'),
+      supabaseAdmin.from('plan_amounts').select('school_id, plan_id, semester, amount').eq('school_year', schoolYear),
     ])
 
     const schoolMap = Object.fromEntries((schools || []).map(s => [s.id, s]))
+    // plan_amounts map: `${school_id}_${plan_id}_${semester}` → amount
+    const planAmtMap: Record<string, number> = {}
+    for (const pa of (planAmounts || [])) {
+      planAmtMap[`${pa.school_id}_${pa.plan_id}_${pa.semester}`] = pa.amount
+    }
 
     // 學校清單
     const schoolRows = (schools || []).map(s => {
@@ -110,23 +123,37 @@ export async function POST(req: Request) {
       '是否修改': b.is_modified ? '是' : '否',
     }))
 
-    // 核銷資料
-    const settleRows = (settlements || []).map(s => ({
+    // 核銷資料（動態計算結餘，不依賴 DB 舊值）
+    const settleRows = (settlements || []).map(s => {
+      // 取核定金額：計畫型用 plan_amounts，學期型用 school_amounts
+      let approved = 0
+      if (s.plan_id) {
+        approved = planAmtMap[`${s.school_id}_${s.plan_id}_${s.semester}`] || 0
+      } else {
+        const a = amounts?.find(x => x.school_id === s.school_id)
+        approved = s.semester === 1 ? (a?.sem1_amount || 0) : (a?.sem2_amount || 0)
+      }
+      const expense = s.total_expense || 0
+      const surplus = approved > 0 && expense > 0 ? approved - expense : (s.surplus || 0)
+      const repay = surplus > 0 ? Math.ceil(surplus) : 0
+      return ({
       '學年度': s.school_year,
       '學期': s.semester,
       '編號': schoolMap[s.school_id]?.code || '',
       '學校名稱': schoolMap[s.school_id]?.name || '',
+      '計畫': s.plan_id || '',
       '人事費': s.personnel_expense,
       '業務費': s.business_expense,
       '設備費': s.equipment_expense,
-      '實支總額': s.total_expense,
-      '計畫結餘款': s.surplus,
-      '應繳回金額': s.repay_amount,
+      '實支總額': expense,
+      '核定金額': approved,
+      '計畫結餘款': surplus,
+      '應繳回金額': repay,
       '狀態': s.status,
       '掃描檔': s.scan_file_path || '',
       '送款憑單': s.remittance_file_path || '',
       '繳款日期': s.remittance_date || '',
-    }))
+    })})
 
     // 帳號清單
     const accountRows = (accounts || []).map(a => ({

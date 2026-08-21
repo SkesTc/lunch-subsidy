@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getActiveSchoolYear } from '@/lib/schoolYear'
+import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 import { formatAmount } from '@/lib/utils'
@@ -14,10 +15,24 @@ export async function GET(req: Request) {
   const type = searchParams.get('type')
   const schoolYear = await getActiveSchoolYear()
 
-  const { data: schools } = await supabaseAdmin.from('schools').select('id, code, district, name').eq('is_active', true).order('code')
+  const planId = searchParams.get('plan_id') || null
+
+  const zoneUser = await getUserZoneRole(session.user.email!)
+  const allowedIds = zoneUser ? await getZoneSchoolIds(zoneUser) : null
+  let schoolQuery = supabaseAdmin.from('schools').select('id, code, district, name').eq('is_active', true).order('code')
+  if (allowedIds !== null) schoolQuery = schoolQuery.in('id', allowedIds.length ? allowedIds : [-1])
+  const { data: schools } = await schoolQuery
   const { data: amounts } = await supabaseAdmin.from('school_amounts').select('school_id, sem1_amount, sem2_amount, approved_total').eq('school_year', schoolYear)
   const { data: banks } = await supabaseAdmin.from('bank_accounts').select('school_id, bank_name, branch_name, bank_code, account_name, account_number, contact_name, contact_phone, confirmed_at, is_modified').eq('semester', semester).eq('school_year', schoolYear)
-  const { data: settlements } = await supabaseAdmin.from('settlements').select('school_id, total_expense, business_expense, surplus, repay_amount, scan_file_path, remittance_file_path, remittance_date, status').eq('semester', semester).eq('school_year', schoolYear)
+  const settleQuery = planId
+    ? supabaseAdmin.from('settlements').select('school_id, plan_id, total_expense, business_expense, surplus, repay_amount, scan_file_path, remittance_file_path, remittance_date, status').eq('plan_id', planId).eq('semester', semester).eq('school_year', schoolYear)
+    : supabaseAdmin.from('settlements').select('school_id, plan_id, total_expense, business_expense, surplus, repay_amount, scan_file_path, remittance_file_path, remittance_date, status').eq('semester', semester).eq('school_year', schoolYear).is('plan_id', null)
+  const { data: settlements } = await settleQuery
+  // 計畫模式：取該計畫學期的核定金額
+  const { data: planAmtRows } = planId
+    ? await supabaseAdmin.from('plan_amounts').select('school_id, amount').eq('plan_id', planId).eq('semester', semester).eq('school_year', schoolYear)
+    : { data: null }
+  const planAmtMap: Record<number, number> = Object.fromEntries((planAmtRows || []).map(r => [r.school_id, r.amount]))
 
   if (type === 'bank') {
     const rows = (schools || []).map(s => {
@@ -27,11 +42,10 @@ export async function GET(req: Request) {
         '編號': s.code,
         '區別': s.district,
         '學校名稱': s.name,
-        '核定金額': semester === 1 ? (a?.sem1_amount || 0) : (a?.sem2_amount || 0),
+        '核定金額': planId ? (planAmtMap[s.id] || 0) : (semester === 1 ? (a?.sem1_amount || 0) : (a?.sem2_amount || 0)),
         '銀行名稱': b?.bank_name || '',
-        '分行名稱': b?.branch_name || '',
-        '金融機構代碼': b?.bank_code || '',
-        '帳戶戶名': b?.account_name || '',
+        '帳戶名稱': b?.account_name || '',
+        '局號': b?.bank_code || '',
         '帳號': b?.account_number || '',
         '聯絡人': b?.contact_name || '',
         '聯絡電話': b?.contact_phone || '',
@@ -55,7 +69,9 @@ export async function GET(req: Request) {
     const rows = (schools || []).map(s => {
       const st = settlements?.find(x => x.school_id === s.id)
       const a = amounts?.find(a => a.school_id === s.id)
-      const A = semester === 1 ? (a?.sem1_amount || 0) : (a?.sem2_amount || 0)
+      const A = planId
+        ? (planAmtMap[s.id] || 0)
+        : (semester === 1 ? (a?.sem1_amount || 0) : (a?.sem2_amount || 0))
       const B = A
       const C = A > 0 ? B / A : 1
       const D = st?.total_expense || st?.business_expense || 0
@@ -86,19 +102,25 @@ export async function GET(req: Request) {
     })
   }
 
-  // surplus
+  // surplus（動態計算，不依賴 DB 存的舊值）
   const rows = (schools || []).map(s => {
     const st = settlements?.find(x => x.school_id === s.id)
     const a = amounts?.find(a => a.school_id === s.id)
+    const approved = planId
+      ? (planAmtMap[s.id] || 0)
+      : (semester === 1 ? (a?.sem1_amount || 0) : (a?.sem2_amount || 0))
+    const expense = st?.total_expense || 0
+    const surplus = approved > 0 && expense > 0 ? approved - expense : 0
+    const repay = surplus > 0 ? Math.ceil(surplus) : 0
     return {
       '編號': s.code,
       '區別': s.district,
       '學校名稱': s.name,
-      '核定金額': semester === 1 ? (a?.sem1_amount || 0) : (a?.sem2_amount || 0),
-      '實支總額': st?.total_expense || 0,
-      '計畫結餘款': st?.surplus || 0,
-      '應繳回金額': st?.repay_amount || 0,
-      '送款憑單': st?.remittance_file_path ? '已上傳' : (st?.repay_amount > 0 ? '未上傳' : '-'),
+      '核定金額': approved,
+      '實支總額': expense,
+      '計畫結餘款': surplus,
+      '應繳回金額': repay,
+      '送款憑單': st?.remittance_file_path ? '已上傳' : (repay > 0 ? '未上傳' : '-'),
       '繳款日期': st?.remittance_date || '',
     }
   })

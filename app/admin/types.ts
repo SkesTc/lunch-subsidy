@@ -1,5 +1,5 @@
 export interface School {
-  id: number; code: number; district: string; name: string
+  id: number; code: number; district: string; name: string; zone_id?: number | null
 }
 export interface AmountRow {
   school_id: number; school_year: string; sem1_amount: number; sem2_amount: number; approved_total: number
@@ -10,7 +10,7 @@ export interface BankRow {
   account_name: string | null; account_number: string | null
 }
 export interface SettleRow {
-  id: number; school_id: number; semester: number; status: string
+  id: number; school_id: number; semester: number; plan_id?: string | null; status: string
   scan_file_path: string | null; remittance_file_path: string | null; remittance_date: string | null
   repay_amount: number; surplus: number; total_expense: number
 }

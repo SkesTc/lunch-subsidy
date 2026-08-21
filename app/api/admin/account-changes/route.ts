@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 
 const BUCKET = 'settlement-files'
@@ -7,6 +8,9 @@ const BUCKET = 'settlement-files'
 export async function GET() {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
+
+  const zoneUser = await getUserZoneRole(session.user.email!)
+  const allowedIds = zoneUser ? await getZoneSchoolIds(zoneUser) : null
 
   const { data: files } = await supabaseAdmin.storage.from(BUCKET).list('__account-changes')
   if (!files?.length) return NextResponse.json([])
@@ -20,7 +24,9 @@ export async function GET() {
       return null
     })
   )
-  return NextResponse.json(results.filter(Boolean))
+  const all = results.filter(Boolean)
+  if (allowedIds !== null) return NextResponse.json(all.filter((r: { school_id: number }) => allowedIds.includes(Number(r.school_id))))
+  return NextResponse.json(all)
 }
 
 export async function PATCH(req: Request) {
@@ -28,6 +34,11 @@ export async function PATCH(req: Request) {
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
 
   const { schoolId, schoolYear, action, adminNote } = await req.json()
+  const zoneUser = await getUserZoneRole(session.user.email!)
+  const allowedIds = zoneUser ? await getZoneSchoolIds(zoneUser) : null
+  if (allowedIds !== null && !allowedIds.includes(Number(schoolId))) {
+    return NextResponse.json({ error: '無權限審核此學校的申請' }, { status: 403 })
+  }
   // action: 'approve' | 'reject'
 
   const path = `__account-changes/${schoolId}_${schoolYear}.json`
@@ -37,15 +48,16 @@ export async function PATCH(req: Request) {
   const request = JSON.parse(await data.text())
 
   if (action === 'approve') {
+    const semester = request.semester || 1
     // Update bank_accounts
     const { data: existing } = await supabaseAdmin
       .from('bank_accounts').select('id')
-      .eq('school_id', schoolId).eq('school_year', schoolYear).single()
+      .eq('school_id', schoolId).eq('school_year', schoolYear).eq('semester', semester).single()
 
     const bankPayload = {
       school_id: schoolId,
       school_year: schoolYear,
-      semester: 1,
+      semester,
       ...request.new_info,
       is_preloaded: false,
       is_modified: true,

@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getActiveSchoolYear } from '@/lib/schoolYear'
+import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 
@@ -16,17 +17,14 @@ export async function GET() {
     '區別': s.district,
     '學校名稱': s.name,
     '銀行名稱': '',
-    '分行名稱': '',
-    '金融機構代碼': '',
-    '帳戶戶名': '',
+    '帳戶名稱': '',
+    '局號': '',
     '帳號': '',
-    '聯絡人': '',
-    '聯絡電話': '',
   }))
 
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.json_to_sheet(rows)
-  ws['!cols'] = [8, 8, 20, 12, 12, 10, 14, 16, 8, 12].map(w => ({ wch: w }))
+  ws['!cols'] = [8, 8, 20, 14, 10, 20].map(w => ({ wch: w }))
   XLSX.utils.book_append_sheet(wb, ws, '帳戶資料')
   const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' })
 
@@ -41,6 +39,8 @@ export async function GET() {
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
+  const zoneUser = await getUserZoneRole(session.user.email!)
+  if (!zoneUser || !isSuperAdmin(zoneUser)) return NextResponse.json({ error: '僅限超級管理者' }, { status: 403 })
 
   const fd = await req.formData()
   const file = fd.get('file') as File
@@ -68,9 +68,9 @@ export async function POST(req: Request) {
       semester,
       school_year: schoolYear,
       bank_name: row['銀行名稱'] || '',
-      branch_name: row['分行名稱'] || '',
-      bank_code: row['金融機構代碼'] || '',
-      account_name: row['帳戶戶名'] || '',
+      branch_name: row['分行名稱'] || '',  // 向後相容舊範本
+      bank_code: row['局號'] || row['金融機構代碼'] || '',
+      account_name: row['帳戶名稱'] || row['帳戶戶名'] || '',
       account_number: row['帳號'] || '',
       contact_name: row['聯絡人'] || '',
       contact_phone: row['聯絡電話'] || '',

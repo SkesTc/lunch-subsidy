@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getActiveSchoolYear, getAllSettings } from '@/lib/settings'
 import { getGasSettings, gasDeleteFile } from '@/lib/gas'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
+import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 
 const BUCKET = 'settlement-files'
@@ -20,61 +21,90 @@ export async function GET() {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '無權限' }, { status: 403 })
 
-  const schoolYear = await getActiveSchoolYear()
-  const { data: requests } = await supabaseAdmin
+  const [schoolYear, zoneUser] = await Promise.all([
+    getActiveSchoolYear(),
+    getUserZoneRole(session.user.email!),
+  ])
+  const zoneSchoolIds = zoneUser ? await getZoneSchoolIds(zoneUser) : null
+
+  let reqQuery = supabaseAdmin
     .from('change_requests')
     .select('*, schools(name, code, district)')
     .eq('school_year', schoolYear)
     .order('created_at', { ascending: false })
+  if (zoneSchoolIds !== null) {
+    reqQuery = reqQuery.in('school_id', zoneSchoolIds.length ? zoneSchoolIds : [-1])
+  }
+  const { data: requests } = await reqQuery
 
   if (!requests) return NextResponse.json([])
 
   // 所有申請都需要補充財務資料（核定金額、實支、結餘）
   const schoolIds = [...new Set(requests.map(r => r.school_id))]
 
-  const [{ data: settles }, { data: amounts }] = await Promise.all([
+  // 收集 plan_ids（for plan-based requests）
+  const planIds = [...new Set(requests.map(r => r.plan_id).filter(Boolean))] as string[]
+
+  const [{ data: settles }, { data: amounts }, { data: planSettles }, { data: planAmountRows }, { data: plansData }] = await Promise.all([
     supabaseAdmin
       .from('settlements')
-      .select('school_id, semester, scan_file_path, remittance_file_path, business_expense, total_expense, surplus, repay_amount')
+      .select('school_id, semester, plan_id, scan_file_path, remittance_file_path, business_expense, total_expense, surplus, repay_amount')
       .eq('school_year', schoolYear)
       .in('school_id', schoolIds),
-    supabaseAdmin
-      .from('school_amounts')
-      .select('school_id, sem1_amount, sem2_amount')
-      .eq('school_year', schoolYear)
-      .in('school_id', schoolIds),
+    supabaseAdmin.from('school_amounts').select('school_id, sem1_amount, sem2_amount').eq('school_year', schoolYear).in('school_id', schoolIds),
+    planIds.length > 0
+      ? supabaseAdmin.from('settlements').select('school_id, plan_id, semester, scan_file_path, remittance_file_path, business_expense, total_expense, surplus, repay_amount').eq('school_year', schoolYear).in('plan_id', planIds)
+      : Promise.resolve({ data: [] }),
+    planIds.length > 0
+      ? supabaseAdmin.from('plan_amounts').select('school_id, plan_id, semester, amount').eq('school_year', schoolYear).in('plan_id', planIds)
+      : Promise.resolve({ data: [] }),
+    planIds.length > 0
+      ? supabaseAdmin.from('plans').select('id, label').in('id', planIds)
+      : Promise.resolve({ data: [] }),
   ])
 
-  const settleMap: Record<string, {
-    scan_file_path: string | null; remittance_file_path: string | null
-    business_expense: number | null; total_expense: number | null
-    surplus: number | null; repay_amount: number | null
-  }> = {}
+  type SettleInfo = { scan_file_path: string | null; remittance_file_path: string | null; business_expense: number | null; total_expense: number | null; surplus: number | null; repay_amount: number | null }
+  const settleMap: Record<string, SettleInfo> = {}
+  const planSettleMap: Record<string, SettleInfo> = {}
   const approvedAmountMap: Record<string, { sem1_amount: number; sem2_amount: number }> = {}
+  const planAmountMap: Record<string, number> = {}
+  const planLabelMap: Record<string, string> = {}
 
   for (const s of settles ?? []) {
-    settleMap[`${s.school_id}_${s.semester}`] = {
-      scan_file_path: s.scan_file_path,
-      remittance_file_path: s.remittance_file_path,
-      business_expense: s.business_expense,
-      total_expense: s.total_expense,
-      surplus: s.surplus,
-      repay_amount: s.repay_amount,
-    }
+    settleMap[`${s.school_id}_${s.semester}`] = s
+  }
+  for (const s of planSettles ?? []) {
+    if (s.plan_id) planSettleMap[`${s.school_id}_${s.plan_id}_${s.semester ?? ''}`] = s
   }
   for (const a of amounts ?? []) {
     approvedAmountMap[String(a.school_id)] = { sem1_amount: a.sem1_amount, sem2_amount: a.sem2_amount }
   }
+  for (const pa of planAmountRows ?? []) {
+    planAmountMap[`${pa.school_id}_${pa.plan_id}_${(pa as { semester: number }).semester}`] = pa.amount
+  }
+  for (const p of plansData ?? []) {
+    planLabelMap[p.id] = p.label
+  }
 
   const enriched = requests.map(r => {
-    const settle = settleMap[`${r.school_id}_${r.semester}`]
+    const settle = r.plan_id
+      ? planSettleMap[`${r.school_id}_${r.plan_id}_${r.semester ?? ''}`]
+      : settleMap[`${r.school_id}_${r.semester}`]
     const amtRow = approvedAmountMap[String(r.school_id)]
-    const approved_amount = r.semester === 1 ? (amtRow?.sem1_amount ?? null) : (amtRow?.sem2_amount ?? null)
-    // 財務摘要：給所有審核卡片顯示
+    const approved_amount = r.plan_id
+      ? (planAmountMap[`${r.school_id}_${r.plan_id}_${r.semester}`] ?? null)
+      : (r.semester === 1 ? (amtRow?.sem1_amount ?? null) : (amtRow?.sem2_amount ?? null))
+    const plan_label = r.plan_id ? (planLabelMap[r.plan_id] ?? null) : null
+    const actual_expense = settle?.total_expense ?? settle?.business_expense ?? null
+    // 動態計算結餘，不依賴 DB 存的舊值
+    const surplus = (approved_amount != null && actual_expense != null && approved_amount > 0)
+      ? approved_amount - actual_expense
+      : (settle?.surplus ?? null)
     const financial = {
       approved_amount,
-      actual_expense: settle?.total_expense ?? settle?.business_expense ?? null,
-      surplus: settle?.surplus ?? null,
+      actual_expense,
+      surplus,
+      plan_label,
     }
 
     if (r.request_type === 'scan_reupload' || r.request_type === 'remittance_reupload') {
@@ -135,15 +165,30 @@ export async function PATCH(req: Request) {
           .eq('school_id', cr.school_id).eq('is_admin', false).single(),
       ])
 
-      const A = cr.semester === 1 ? (amountRow?.sem1_amount || 0) : (amountRow?.sem2_amount || 0)
+      let A = 0
+      if (cr.plan_id) {
+        const { data: pa } = await supabaseAdmin.from('plan_amounts').select('amount')
+          .eq('school_id', cr.school_id).eq('plan_id', cr.plan_id)
+          .eq('school_year', schoolYear).eq('semester', cr.semester).maybeSingle()
+        A = pa?.amount || 0
+      } else {
+        A = cr.semester === 1 ? (amountRow?.sem1_amount || 0) : (amountRow?.sem2_amount || 0)
+      }
       const D = cr.new_amount
       const E = calcSurplus(A, D)
       const F = calcRepay(E, calcRatio(A, A))
 
-      await supabaseAdmin.from('settlements').update({
-        business_expense: D, total_expense: D, surplus: E, repay_amount: F,
-        amount_locked: true, updated_at: now,
-      }).eq('school_id', cr.school_id).eq('semester', cr.semester).eq('school_year', schoolYear)
+      const updateSettleQ = cr.plan_id
+        ? supabaseAdmin.from('settlements').update({
+            business_expense: D, total_expense: D, surplus: E, repay_amount: F,
+            amount_locked: true, updated_at: now,
+          }).eq('school_id', cr.school_id).eq('plan_id', cr.plan_id)
+            .eq('semester', cr.semester).eq('school_year', schoolYear)
+        : supabaseAdmin.from('settlements').update({
+            business_expense: D, total_expense: D, surplus: E, repay_amount: F,
+            amount_locked: true, updated_at: now,
+          }).eq('school_id', cr.school_id).eq('semester', cr.semester).eq('school_year', schoolYear).is('plan_id', null)
+      await updateSettleQ
 
       // 寄信（非阻斷核准結果）
       sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, schoolName, admin_note, isApproved: true }).catch(() => {})
@@ -157,10 +202,15 @@ export async function PATCH(req: Request) {
       const isReupload = cr.request_type === 'scan_reupload' || cr.request_type === 'remittance_reupload'
 
       // 【優化3】並行：更新 change_requests + 查 settlement + 查 user_profiles
+      const settleQ = cr.plan_id
+        ? supabaseAdmin.from('settlements').select(`id, ${fileField}`)
+            .eq('school_id', cr.school_id).eq('plan_id', cr.plan_id)
+            .eq('semester', cr.semester).eq('school_year', schoolYear).maybeSingle()
+        : supabaseAdmin.from('settlements').select(`id, ${fileField}`)
+            .eq('school_id', cr.school_id).eq('semester', cr.semester).eq('school_year', schoolYear).is('plan_id', null).maybeSingle()
       const [, { data: settle }, { data: profile }] = await Promise.all([
         updateCR,
-        supabaseAdmin.from('settlements').select(`id, ${fileField}`)
-          .eq('school_id', cr.school_id).eq('semester', cr.semester).eq('school_year', schoolYear).single(),
+        settleQ,
         supabaseAdmin.from('user_profiles')
           .select('email, contact_name, contact_title, contact_phone')
           .eq('school_id', cr.school_id).eq('is_admin', false).single(),
@@ -185,11 +235,18 @@ export async function PATCH(req: Request) {
       }
 
       if (settle) {
-        await supabaseAdmin.from('settlements').update(updateData)
-          .eq('school_id', cr.school_id).eq('semester', cr.semester).eq('school_year', schoolYear)
+        const updateQ = cr.plan_id
+          ? supabaseAdmin.from('settlements').update(updateData)
+              .eq('school_id', cr.school_id).eq('plan_id', cr.plan_id)
+              .eq('semester', cr.semester).eq('school_year', schoolYear)
+          : supabaseAdmin.from('settlements').update(updateData)
+              .eq('school_id', cr.school_id).eq('semester', cr.semester).eq('school_year', schoolYear).is('plan_id', null)
+        await updateQ
       } else {
         await supabaseAdmin.from('settlements').insert({
-          school_id: cr.school_id, semester: cr.semester, school_year: schoolYear, ...updateData,
+          school_id: cr.school_id, semester: cr.semester, school_year: schoolYear,
+          ...(cr.plan_id ? { plan_id: cr.plan_id } : {}),
+          ...updateData,
         })
       }
 
@@ -198,18 +255,47 @@ export async function PATCH(req: Request) {
     }
 
   } else if (action === 'rejected') {
-    // 【優化4】並行：更新 change_requests + 刪除檔案 + 查 user_profiles
-    const deleteFile = cr.pending_file_path && gasUrl && !cr.pending_file_path.includes('/')
+    const isReuploadReject = cr.request_type === 'scan_reupload' || cr.request_type === 'remittance_reupload'
+    const isScanReject = cr.request_type === 'scan_reupload'
+    const existingFileField = isScanReject ? 'scan_file_path' : 'remittance_file_path'
+
+    // 刪除待審的 pending 檔案
+    const deletePending = cr.pending_file_path && gasUrl && !cr.pending_file_path.includes('/')
       ? gasDeleteFile({ gasUrl, gasSecret, fileId: cr.pending_file_path })
       : Promise.resolve()
 
     const [, , { data: profile }] = await Promise.all([
       updateCR,
-      deleteFile.catch(e => console.error('change-requests:', e)),
+      deletePending.catch(e => console.error('change-requests reject:', e)),
       supabaseAdmin.from('user_profiles')
         .select('email, contact_name, contact_title, contact_phone')
         .eq('school_id', cr.school_id).eq('is_admin', false).single(),
     ])
+
+    // reupload 被拒絕：同時清除原本已核准的檔案
+    if (isReuploadReject) {
+      const settleQ = cr.plan_id
+        ? supabaseAdmin.from('settlements').select(`id, ${existingFileField}`)
+            .eq('school_id', cr.school_id).eq('plan_id', cr.plan_id)
+            .eq('semester', cr.semester).eq('school_year', schoolYear).maybeSingle()
+        : supabaseAdmin.from('settlements').select(`id, ${existingFileField}`)
+            .eq('school_id', cr.school_id).eq('semester', cr.semester).eq('school_year', schoolYear).is('plan_id', null).maybeSingle()
+      const { data: settle } = await settleQ
+      if (settle) {
+        const oldPath = (settle as Record<string, unknown>)[existingFileField] as string | null
+        // 刪除舊的已核准檔案（非阻斷）
+        if (oldPath) {
+          const del = !oldPath.includes('/') && gasUrl
+            ? gasDeleteFile({ gasUrl, gasSecret, fileId: oldPath })
+            : supabaseAdmin.storage.from(BUCKET).remove([oldPath])
+          del.catch(e => console.error('delete old approved file:', e))
+        }
+        // 清除 settlement 的檔案欄位
+        const clearData: Record<string, unknown> = { [existingFileField]: null, updated_at: now }
+        if (isScanReject) clearData.status = 'downloaded'
+        await supabaseAdmin.from('settlements').update(clearData).eq('id', (settle as { id: string }).id)
+      }
+    }
 
     // 寄信（非阻斷）
     sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, schoolName, admin_note, isApproved: false }).catch(() => {})
@@ -235,7 +321,11 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
     return { scan_upload: '首次上傳經費收支結算表掃描檔', scan_reupload: '經費收支結算表掃描檔重新上傳', remittance_upload: '首次上傳賸餘款送款憑單', remittance_reupload: '賸餘款送款憑單重新上傳' }[rt] || rt
   })()
 
-  const semLabel = `第${cr.semester}學期`
+  const planLabel = cr.plan_id ? await (async () => {
+    const { data: p } = await supabaseAdmin.from('plans').select('label').eq('id', cr.plan_id as string).single()
+    return p?.label || ''
+  })() : ''
+  const semLabel = planLabel ? `${planLabel}（第${cr.semester}學期）` : `第${cr.semester}學期`
   const adminNote = admin_note?.trim()
     ? `${isApproved ? '承辦備註' : '退回原因'}：${admin_note.trim()}\n\n`
     : ''
@@ -262,6 +352,7 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
     .replace(/\{adminTitle\}/g, String(allSettings.admin_title || ''))
     .replace(/\{adminPhone\}/g, String(allSettings.admin_phone || ''))
     .replace(/\{hostSchool\}/g, String(allSettings.host_school || ''))
+    .replace(/\{planLabel\}/g, planLabel)
 
   await fetch(gasUrl, {
     method: 'POST',

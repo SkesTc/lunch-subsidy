@@ -1,5 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
+import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
@@ -10,15 +11,17 @@ export async function GET(req: Request) {
   const limit = Number(searchParams.get('limit') || '200')
   const search = searchParams.get('search') || ''
 
+  const zoneUser = await getUserZoneRole(session.user.email!)
+  const allowedIds = zoneUser ? await getZoneSchoolIds(zoneUser) : null
+
   let query = supabaseAdmin
     .from('login_logs')
-    .select('id, email, school_name, is_admin, logged_in_at')
-    .order('logged_in_at', { ascending: false })
+    .select('id, email, school_id, is_admin, ip, user_agent, created_at, schools(name, code)')
+    .order('created_at', { ascending: false })
     .limit(limit)
 
-  if (search) {
-    query = query.or(`email.ilike.%${search}%,school_name.ilike.%${search}%`)
-  }
+  if (search) query = query.ilike('email', `%${search}%`)
+  if (allowedIds !== null) query = query.in('school_id', allowedIds.length ? allowedIds : [-1])
 
   const { data } = await query
   return NextResponse.json(data || [])

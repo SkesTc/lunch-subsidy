@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getGasSettings, gasDeleteFile } from '@/lib/gas'
+import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
@@ -23,6 +24,8 @@ export async function GET(req: Request) {
 export async function DELETE(req: Request) {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
+  const zoneUser = await getUserZoneRole(session.user.email!)
+  if (!zoneUser || !isSuperAdmin(zoneUser)) return NextResponse.json({ error: '僅限超級管理者' }, { status: 403 })
 
   const { settlementId, fileType } = await req.json()
 

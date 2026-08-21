@@ -29,6 +29,27 @@ export async function gasUploadFile(opts: {
   return data.fileId as string
 }
 
+export async function gasGetFolderUrl(opts: {
+  gasUrl: string
+  gasSecret: string
+  folderId: string
+  subFolder: string
+}): Promise<string | null> {
+  const res = await fetch(opts.gasUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'getFolderUrl',
+      secret: opts.gasSecret,
+      folderId: opts.folderId,
+      subFolder: opts.subFolder,
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.ok) return null
+  return (data.folderUrl as string) || null
+}
+
 export async function gasDeleteFile(opts: {
   gasUrl: string
   gasSecret: string

@@ -133,6 +133,7 @@ const html = `<!DOCTYPE html>
   .sim-step-row { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 1px solid #f1f5f9; border-radius: 8px; margin-bottom: 4px; }
   .sim-step-circle { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
   .sim-step-circle.done { background: #22c55e; color: white; }
+  .sim-step-circle.pending { background: #fbbf24; color: white; }
   .sim-step-circle.todo { background: #e2e8f0; color: #64748b; }
   .sim-step-circle.opt { background: #dbeafe; color: #2563eb; }
   .sim-step-info { flex: 1; }
@@ -200,7 +201,7 @@ const html = `<!DOCTYPE html>
 <!-- ══════════════ 封面 ══════════════ -->
 <div class="cover">
   <div class="cover-icon">🍱</div>
-  <div class="cover-title">臺中市第2區<br>免費營養午餐核銷系統</div>
+  <div class="cover-title">臺中市第2區<br>午餐經費核銷系統</div>
   <div class="cover-subtitle">學校端 操作使用說明書</div>
   <div class="cover-badge">
     <span class="cover-dot"></span>
@@ -295,7 +296,8 @@ const html = `<!DOCTYPE html>
     <div class="page-title">首頁總覽與各功能說明</div>
   </div>
 
-  <p class="desc">登入後進入學校首頁，頁面分為審核結果通知（有未讀通知時才顯示）、學校資訊卡與三個作業期間卡。各期間只有承辦端開放後才能操作。</p>
+  <p class="desc">登入後進入學校首頁，頁面分為審核結果通知（有新通知時才顯示）、學校資訊卡與各作業期間卡。各期間只有承辦端開放後才能操作。</p>
+  <div class="tip">📬 <strong>審核結果通知說明：</strong>當承辦學校審核您的申請後，首頁頂端會出現綠色（✅ 核准）或紅色（❌ 退回）通知橫幅。點右側「✕」可關閉通知，關閉後不再顯示。通知僅顯示 <strong>7 天內</strong>的記錄；若需查閱所有歷史審核結果，請點頁面右下角「<strong>📋 審核訊息紀錄</strong>」按鈕。</div>
 
   <div class="screenshot-wrap">
     <!-- 首頁模擬 -->
@@ -387,10 +389,10 @@ const html = `<!DOCTYPE html>
               <span class="sim-step-arrow">→</span>
             </div>
             <div class="sim-step-row">
-              <div class="sim-step-circle done">✓</div>
+              <div class="sim-step-circle pending">⏳</div>
               <div class="sim-step-info">
                 <div class="sim-step-title">上傳收支結算表掃描檔</div>
-                <div class="sim-step-desc">已上傳</div>
+                <div class="sim-step-desc">待審核中，請靜候通知</div>
               </div>
               <span class="sim-step-arrow">→</span>
             </div>
@@ -514,21 +516,17 @@ const html = `<!DOCTYPE html>
           <div style="font-size:11px;font-weight:700;color:#0369a1;margin-bottom:6px;">目前登記帳戶</div>
           <div style="font-size:11px;color:#0c4a6e;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
             <span style="display:flex;align-items:center;gap:4px;">銀行：<span style="background:#cbd5e1;border-radius:3px;color:transparent;min-width:56px;display:inline-block;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></span>
-            <span style="display:flex;align-items:center;gap:4px;">分行：<span style="background:#cbd5e1;border-radius:3px;color:transparent;min-width:56px;display:inline-block;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></span>
-            <span style="display:flex;align-items:center;gap:4px;">代碼：<span style="background:#cbd5e1;border-radius:3px;color:transparent;min-width:32px;display:inline-block;">&nbsp;&nbsp;&nbsp;</span></span>
-            <span style="display:flex;align-items:center;gap:4px;">戶名：<span style="background:#cbd5e1;border-radius:3px;color:transparent;min-width:72px;display:inline-block;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></span>
+            <span style="display:flex;align-items:center;gap:4px;">帳戶名稱：<span style="background:#cbd5e1;border-radius:3px;color:transparent;min-width:72px;display:inline-block;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></span>
+            <span style="display:flex;align-items:center;gap:4px;">局號：<span style="background:#cbd5e1;border-radius:3px;color:transparent;min-width:48px;display:inline-block;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></span>
             <span style="grid-column:1/-1;display:flex;align-items:center;gap:4px;">帳號：<span style="background:#cbd5e1;border-radius:3px;color:transparent;min-width:150px;display:inline-block;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span></span>
           </div>
         </div>
         <div class="sim-section">填寫新帳戶資訊</div>
+        <div class="sim-field"><div class="sim-label">銀行名稱</div><div class="sim-input" style="color:transparent;background:linear-gradient(90deg,#e2e8f0 0%,#cbd5e1 100%);border-color:#e2e8f0;">████████</div></div>
+        <div class="sim-field"><div class="sim-label">帳戶名稱</div><div class="sim-input" style="color:transparent;background:linear-gradient(90deg,#e2e8f0 0%,#cbd5e1 100%);border-color:#e2e8f0;">████████████</div></div>
         <div class="sim-row">
-          <div class="sim-field"><div class="sim-label">銀行名稱</div><div class="sim-input" style="color:transparent;background:linear-gradient(90deg,#e2e8f0 0%,#cbd5e1 100%);border-color:#e2e8f0;">████████</div></div>
-          <div class="sim-field"><div class="sim-label">分行名稱</div><div class="sim-input" style="color:transparent;background:linear-gradient(90deg,#e2e8f0 0%,#cbd5e1 100%);border-color:#e2e8f0;">████████</div></div>
-        </div>
-        <div class="sim-field"><div class="sim-label">銀行代號（3碼）</div><div class="sim-input" style="color:transparent;background:linear-gradient(90deg,#e2e8f0 0%,#cbd5e1 100%);border-color:#e2e8f0;">███</div></div>
-        <div class="sim-row">
-          <div class="sim-field"><div class="sim-label">帳戶名稱（戶名）</div><div class="sim-input" style="color:transparent;background:linear-gradient(90deg,#e2e8f0 0%,#cbd5e1 100%);border-color:#e2e8f0;">████████████</div></div>
-          <div class="sim-field"><div class="sim-label">帳戶號碼</div><div class="sim-input" style="color:transparent;background:linear-gradient(90deg,#e2e8f0 0%,#cbd5e1 100%);border-color:#e2e8f0;">███████████████</div></div>
+          <div class="sim-field"><div class="sim-label">局號</div><div class="sim-input" style="color:transparent;background:linear-gradient(90deg,#e2e8f0 0%,#cbd5e1 100%);border-color:#e2e8f0;">███████</div></div>
+          <div class="sim-field"><div class="sim-label">帳號</div><div class="sim-input" style="color:transparent;background:linear-gradient(90deg,#e2e8f0 0%,#cbd5e1 100%);border-color:#e2e8f0;">███████████████</div></div>
         </div>
         <div class="sim-section">上傳帳戶憑證圖檔</div>
         <div class="sim-file-zone">
@@ -558,6 +556,7 @@ const html = `<!DOCTYPE html>
   </div>
 
   <p class="desc">在每學期結束時，需填入本學期的實支總金額，系統會自動計算結餘款，並產生收支結算表供下載列印。</p>
+  <div class="warn">⚠️ <strong>防呆提醒：</strong>實支金額不可超過核定金額，超過時系統會即時顯示紅色警示，且無法點選「儲存」按鈕，請確認金額正確後再儲存。</div>
 
   <div class="steps">
     <div class="step-item">
@@ -833,6 +832,10 @@ const html = `<!DOCTYPE html>
   <div class="qa-item">
     <div class="qa-q">每學年需要重新登入或重新綁定學校嗎？</div>
     <div class="qa-a">不需要。帳號綁定後長期有效，每學年直接登入即可操作。只有在承辦人更換或更換操作 Gmail 時才需要重新綁定。</div>
+  </div>
+  <div class="qa-item">
+    <div class="qa-q">一所學校可以用多個 Gmail 帳號登入嗎？</div>
+    <div class="qa-a">不可以。每所學校只能綁定 <strong>一個 Gmail 帳號</strong>進行操作。若嘗試以未綁定的帳號登入，系統會顯示「此帳號尚未綁定學校」，需重新以正確帳號登入。承辦人更換時，請依「學校承辦人員更換」步驟解除舊帳號綁定，再由新承辦人重新綁定。</div>
   </div>
   <div class="qa-item">
     <div class="qa-q">帳戶變更申請送出後發現填錯？</div>
