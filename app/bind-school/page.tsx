@@ -48,15 +48,23 @@ export default function BindSchoolPage() {
   }
 
   async function handleSaveContact() {
+    if (!contactName || !contactPhone) return
     setLoading(true)
+    setError('')
     try {
-      await fetch('/api/account/contact', {
+      const res = await fetch('/api/account/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contactName, contactTitle, contactPhone }),
       })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setError(d.error || '儲存失敗，請重試')
+        setLoading(false)
+        return
+      }
     } catch {
-      // ignore, proceed anyway
+      // 網路錯誤仍導向，但顯示提示
     }
     setLoading(false)
     router.push('/school')
@@ -95,10 +103,14 @@ export default function BindSchoolPage() {
             </div>
           </div>
 
+          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{error}</p>}
           <button onClick={handleSaveContact} disabled={loading || !contactName || !contactPhone}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-medium py-3 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
             {loading ? '儲存中...' : '儲存並進入系統'}
           </button>
+          {(!contactName || !contactPhone) && (
+            <p className="text-xs text-gray-400 text-center">請填寫承辦人姓名與聯絡電話後繼續</p>
+          )}
         </div>
       </div>
     )
