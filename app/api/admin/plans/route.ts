@@ -135,6 +135,8 @@ export async function DELETE(req: Request) {
     }
   }
 
+  // 先刪除 plan_amounts（FK 可能為 RESTRICT），再刪計畫
+  await supabaseAdmin.from('plan_amounts').delete().eq('plan_id', id)
   const { error } = await supabaseAdmin.from('plans').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return new Response(null, { status: 204 })

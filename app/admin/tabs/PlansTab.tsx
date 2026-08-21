@@ -41,7 +41,7 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
     fetch('/api/admin/zones').then(r => r.json()).then(d => setZones(Array.isArray(d) ? d : []))
   }, [])
 
-  function openAdd() { setEditing(null); setForm(emptyPlan()); setShowModal(true) }
+  function openAdd() { setEditing(null); setForm(emptyPlan()); setMsg(''); setShowModal(true) }
   function openEdit(p: Plan) {
     setEditing(p)
     setForm({
@@ -51,7 +51,7 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
       is_open: p.is_open ?? false, open_note: p.open_note || '',
       zone_ids: p.zone_ids || (p.zone_id ? [p.zone_id] : []),
     })
-    setShowModal(true)
+    setMsg(''); setShowModal(true)
   }
 
   function toggleZone(zoneId: number) {
