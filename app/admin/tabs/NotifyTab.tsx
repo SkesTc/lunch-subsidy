@@ -9,7 +9,7 @@ interface Settings {
   [key: string]: string
 }
 
-export default function NotifyTab() {
+export default function NotifyTab({ isSuperAdmin }: { isSuperAdmin?: boolean }) {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -137,10 +137,16 @@ export default function NotifyTab() {
 
       <div className="pt-2 space-y-2">
         {saveError && <p className="text-sm text-red-600">{saveError}</p>}
-        <button onClick={handleSave} disabled={saving}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium px-6 py-2.5 rounded-xl cursor-pointer transition-colors">
-          {saving ? <span className="flex items-center justify-center gap-2"><Spinner /> 儲存中...</span> : saved ? '✅ 已儲存' : '儲存設定'}
-        </button>
+        {isSuperAdmin === false ? (
+          <p className="text-sm text-gray-400 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5">
+            🔒 通知信範本僅限超級管理員修改
+          </p>
+        ) : (
+          <button onClick={handleSave} disabled={saving}
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium px-6 py-2.5 rounded-xl cursor-pointer transition-colors">
+            {saving ? <span className="flex items-center justify-center gap-2"><Spinner /> 儲存中...</span> : saved ? '✅ 已儲存' : '儲存設定'}
+          </button>
+        )}
       </div>
     </div>
   )

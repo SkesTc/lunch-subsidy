@@ -184,7 +184,7 @@ export default function SchoolsTab({ activeSchoolYear, plans, isSuperAdmin, onPl
       {subTab === 'plans' && <PlansTab activeSchoolYear={activeSchoolYear} isSuperAdmin={isSuperAdmin} onPlansChanged={onPlansChanged} />}
 
       {/* ── 通知信範本 ── */}
-      {subTab === 'notify' && <NotifyTab />}
+      {subTab === 'notify' && <NotifyTab isSuperAdmin={isSuperAdmin} />}
 
       {/* ── 核定金額管理 ── */}
       {subTab === 'amounts' && (
