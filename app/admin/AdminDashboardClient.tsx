@@ -475,17 +475,32 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   }
 
   function openSummaryPrint() {
-    const totalA = schools.reduce((acc, s) => {
-      const a = amounts.find(x => x.school_id === s.id)
-      return acc + (effectiveSem === 1 ? (a?.sem1_amount || 0) : (a?.sem2_amount || 0))
-    }, 0)
+    // 計畫模式：totalA 從 planAmounts 計算；一般模式：從 school_amounts
+    const totalA = selectedPlan
+      ? semSchools.reduce((acc, { school }) => {
+          const pSem = isFullYear ? effectiveSem : (selectedPlan.semester ?? 1)
+          const pa = planAmounts.find(a => a.plan_id === selectedPlan.id && a.school_id === school.id && a.semester === pSem)
+          return acc + (pa?.amount || 0)
+        }, 0)
+      : schools.reduce((acc, s) => {
+          const a = amounts.find(x => x.school_id === s.id)
+          return acc + (effectiveSem === 1 ? (a?.sem1_amount || 0) : (a?.sem2_amount || 0))
+        }, 0)
+
     const totalD = settlements
-      .filter(x => x.semester === effectiveSem)
+      .filter(x => x.semester === effectiveSem && (selectedPlan ? x.plan_id === selectedPlan.id : !x.plan_id))
       .reduce((acc, x) => acc + (x.total_expense || 0), 0)
+
     const B = totalA
     const C = totalA > 0 ? B / totalA : 1
     const E = totalA - totalD
     const F = E > 0 ? Math.ceil(E * C) : 0
+
+    // 區別名稱：取 semSchools 第一筆學校的 zone_id 對應名稱
+    const firstZoneId = semSchools[0]?.school?.zone_id
+    const printZoneName = firstZoneId ? (zonesMap[firstZoneId] || '') : ''
+    const printPlanName = selectedPlan ? selectedPlan.name : planName
+
     const params = new URLSearchParams({
       sem: String(effectiveSem),
       A: String(totalA), B: String(B),
@@ -493,7 +508,8 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
       E: String(E), F: String(F),
       systemName: hostSchool || '臺中市第2區',
       schoolYear: activeSchoolYear,
-      planName,
+      planName: printPlanName,
+      zoneName: printZoneName,
     })
     window.open(`/settlement-print-all?${params}`, '_blank')
   }

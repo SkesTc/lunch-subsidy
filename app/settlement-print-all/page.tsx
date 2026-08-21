@@ -16,6 +16,7 @@ function PrintContent() {
   const schoolYear = params.get('schoolYear') || '115'
   const basePlanName = params.get('planName') || `${schoolYear}學年度公立國中小免費營養午餐計畫經費`
   const planName = `${basePlanName}（第${sem}學期）`
+  const zoneName = params.get('zoneName') || ''
 
   useEffect(() => {
     const prev = document.title
@@ -60,6 +61,11 @@ function PrintContent() {
         </div>
       </div>
 
+      {zoneName && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '2px' }}>
+          <span style={{ fontSize: '10pt' }}>{zoneName}</span>
+        </div>
+      )}
       <div className="title" style={{ lineHeight: '1.5' }}>
         {systemName}<br />經費收支結算表
       </div>
