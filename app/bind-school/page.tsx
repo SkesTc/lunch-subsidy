@@ -67,7 +67,7 @@ export default function BindSchoolPage() {
       // 網路錯誤仍導向，但顯示提示
     }
     setLoading(false)
-    router.push('/school')
+    window.location.href = '/school'
   }
 
   if (step === 'contact') {
