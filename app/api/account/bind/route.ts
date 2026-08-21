@@ -6,7 +6,11 @@ import { NextResponse } from 'next/server'
 export async function POST(req: Request) {
   const session = await auth()
   if (!session?.user?.email) return NextResponse.json({ error: '未登入' }, { status: 401 })
-  if (session.user.school_id) return NextResponse.json({ error: '已綁定學校' }, { status: 400 })
+
+  // 以 DB 為準，避免 session 快取過時導致重複綁定
+  const { data: existingProfile } = await supabaseAdmin
+    .from('user_profiles').select('school_id').eq('email', session.user.email).single()
+  if (existingProfile?.school_id) return NextResponse.json({ error: '已綁定學校' }, { status: 400 })
 
   const { schoolCode } = await req.json()
 
