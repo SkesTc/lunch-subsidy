@@ -21,7 +21,11 @@ export async function GET(req: Request) {
     .limit(limit)
 
   if (search) query = query.ilike('email', `%${search}%`)
-  if (allowedIds !== null) query = query.in('school_id', allowedIds.length ? allowedIds : [-1])
+  if (allowedIds !== null) {
+    // 區管理員：顯示區內學校登入 + 管理員本身（school_id = null）
+    const idList = allowedIds.length ? allowedIds.join(',') : '-1'
+    query = query.or(`school_id.is.null,school_id.in.(${idList})`)
+  }
 
   const { data } = await query
   return NextResponse.json(data || [])
