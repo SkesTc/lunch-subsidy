@@ -234,6 +234,7 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   const [districtFilter, setDistrictFilter] = useState('')
   const [zoneFilter, setZoneFilter] = useState<number | null>(null)
   const [zonesMap, setZonesMap] = useState<Record<number, string>>({})
+  const [zonesHostMap, setZonesHostMap] = useState<Record<number, string>>({})
   const [bankFilter, setBankFilter] = useState<StatusFilter>('all')
   const [bindFilter, setBindFilter] = useState<StatusFilter>('all')
   const [scanFilter, setScanFilter] = useState<StatusFilter>('all')
@@ -285,8 +286,10 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
     fetch('/api/admin/zones').then(r => r.json()).then(d => {
       if (Array.isArray(d)) {
         const map: Record<number, string> = {}
-        for (const z of d) map[z.id] = z.name
+        const hostMap: Record<number, string> = {}
+        for (const z of d) { map[z.id] = z.name; hostMap[z.id] = z.host_school || '' }
         setZonesMap(map)
+        setZonesHostMap(hostMap)
       }
     }).catch(() => {})
     fetch('/api/admin/settings').then(r => r.json()).then(d => {
@@ -496,9 +499,10 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
     const E = totalA - totalD
     const F = E > 0 ? Math.ceil(E * C) : 0
 
-    // 區別名稱：取 semSchools 第一筆學校的 zone_id 對應名稱
+    // 區別：取 semSchools 第一筆學校的 zone_id 對應名稱與承辦學校
     const firstZoneId = semSchools[0]?.school?.zone_id
     const printZoneName = firstZoneId ? (zonesMap[firstZoneId] || '') : ''
+    const printHostSchool = firstZoneId ? (zonesHostMap[firstZoneId] || hostSchool || '') : (hostSchool || '')
     const printPlanName = selectedPlan ? selectedPlan.name : planName
 
     const params = new URLSearchParams({
@@ -506,7 +510,7 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
       A: String(totalA), B: String(B),
       C: String(C), D: String(totalD),
       E: String(E), F: String(F),
-      systemName: hostSchool || '臺中市第2區',
+      systemName: printHostSchool || printZoneName || '臺中市第2區',
       schoolYear: activeSchoolYear,
       planName: printPlanName,
       zoneName: printZoneName,
