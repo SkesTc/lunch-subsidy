@@ -83,15 +83,22 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   async function selectZone(zone: Zone) {
     setSelectedZone(zone)
     setFormLoading(true)
+    setMsg('')
     const res = await fetch(`/api/admin/zone-settings?zone_id=${zone.id}`)
-    const settings = await res.json()
-    setForm({
-      _zone_name: zone.name,
-      _host_school: zone.host_school,
-      _host_email: zone.host_email,
-      _is_active: zone.is_active !== false ? 'true' : 'false',
-      ...settings,
-    })
+    const data = await res.json()
+    if (!res.ok) {
+      setMsgOk(false)
+      setMsg(data.error || '無法載入設定，請確認帳號已指定所屬區別')
+      setForm({ _zone_name: zone.name, _host_school: zone.host_school, _host_email: zone.host_email, _is_active: zone.is_active !== false ? 'true' : 'false' })
+    } else {
+      setForm({
+        _zone_name: zone.name,
+        _host_school: zone.host_school,
+        _host_email: zone.host_email,
+        _is_active: zone.is_active !== false ? 'true' : 'false',
+        ...data,
+      })
+    }
     setFormLoading(false)
   }
 

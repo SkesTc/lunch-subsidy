@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth'
-import { getZoneSettings, saveZoneSettings, getUserZoneRole, isZoneAdmin, canAccessZone } from '@/lib/zones'
+import { getZoneSettings, saveZoneSettings, getUserZoneRole, isZoneAdmin, isSuperAdmin, canAccessZone } from '@/lib/zones'
 import { invalidateSettingsCache } from '@/lib/settings'
 import { NextResponse } from 'next/server'
 
@@ -15,7 +15,11 @@ export async function GET(req: Request) {
   const zoneId = Number(searchParams.get('zone_id')) || zoneUser.zone_id || 2
   const planId = searchParams.get('plan_id') ? Number(searchParams.get('plan_id')) : undefined
 
-  if (!canAccessZone(zoneUser, zoneId)) return NextResponse.json({ error: '無權限存取此區別' }, { status: 403 })
+  // zone_admin 未指派 zone_id 時回傳空設定（而非 403）
+  if (!canAccessZone(zoneUser, zoneId)) {
+    if (!isSuperAdmin(zoneUser) && !zoneUser.zone_id) return NextResponse.json({})
+    return NextResponse.json({ error: '無權限存取此區別' }, { status: 403 })
+  }
 
   const settings = await getZoneSettings(zoneId, planId)
   return NextResponse.json(settings)
