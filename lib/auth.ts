@@ -29,16 +29,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         })
       }
       // 寫入登入紀錄
-      let schoolName: string | null = null
-      const schoolId = profile?.school_id
-      if (schoolId) {
-        const { data: school } = await supabaseAdmin
-          .from('schools').select('name').eq('id', schoolId).single()
-        schoolName = school?.name || null
-      }
+      const schoolId = profile?.school_id || null
       await supabaseAdmin.from('login_logs').insert({
         email: user.email,
-        school_id: schoolId || null,
+        school_id: schoolId,
         is_admin: profile?.is_admin ?? isAdmin,
       })
       return true
