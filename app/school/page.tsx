@@ -101,8 +101,8 @@ export default async function SchoolDashboard() {
     planAmountMap[pa.plan_id][(pa as { plan_id: string; semester: number; amount: number }).semester ?? 1] = pa.amount
     if (activePlanIds.has(pa.plan_id)) planAmountTotal += pa.amount || 0
   }
-  // 核定總金額 = 基本免費午餐 + 所有計畫核定金額
-  const grandTotal = (amounts?.approved_total || 0) + planAmountTotal
+  // 核定總金額：有計畫金額時只用計畫合計，避免與 school_amounts 重複計算
+  const grandTotal = planAmountTotal > 0 ? planAmountTotal : (amounts?.approved_total || 0)
   // 只顯示有核定金額的計畫（第4點）
   const visiblePlans = (plans || []).filter(plan => {
     const sems = plan.semester == null ? [1, 2] : [plan.semester ?? 1]
