@@ -125,10 +125,10 @@ export async function DELETE(req: Request) {
   const { id } = await req.json()
   if (!id) return NextResponse.json({ error: '缺少 id' }, { status: 400 })
 
-  const { data: plan } = await supabaseAdmin.from('plans').select('zone_ids, zone_id').eq('id', id).single()
-  if (!plan) return NextResponse.json({ error: '計畫不存在' }, { status: 404 })
-
+  // super_admin 直接刪除，不需查 zone_ids（避免欄位不存在時失敗）
   if (!isSuperAdmin(zoneUser)) {
+    const { data: plan } = await supabaseAdmin.from('plans').select('zone_ids, zone_id').eq('id', id).single()
+    if (!plan) return NextResponse.json({ error: '計畫不存在' }, { status: 404 })
     const planZones: number[] = plan.zone_ids || (plan.zone_id ? [plan.zone_id] : [])
     if (!zoneUser.zone_id || !planZones.includes(zoneUser.zone_id)) {
       return NextResponse.json({ error: '無權限刪除此計畫' }, { status: 403 })

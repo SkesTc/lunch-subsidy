@@ -106,7 +106,6 @@ export async function saveZoneSettings(zoneId: number, planId: number | null, se
     plan_id: planId,
     key,
     value,
-    updated_at: new Date().toISOString(),
   }))
   await supabaseAdmin.from('zone_settings').insert(rows)
 }
