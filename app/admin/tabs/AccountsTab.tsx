@@ -43,7 +43,7 @@ export default function AccountsTab({
   const [addError, setAddError] = useState('')
 
   // 登入紀錄
-  interface LoginLog { id: string; email: string; is_admin: boolean; created_at: string; schools?: { name: string; code: number } | null }
+  interface LoginLog { id: string; email: string; school_name: string | null; is_admin: boolean; created_at: string }
   const [logs, setLogs] = useState<LoginLog[]>([])
   const [logSearch, setLogSearch] = useState('')
   const [logLoading, setLogLoading] = useState(true)
@@ -337,7 +337,7 @@ export default function AccountsTab({
                         {l.created_at ? new Date(l.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
                       </td>
                       <td className="px-4 py-2.5 text-gray-700">{l.email}</td>
-                      <td className="px-4 py-2.5 text-gray-500">{l.schools?.name || <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-2.5 text-gray-500">{l.school_name || <span className="text-gray-300">—</span>}</td>
                       <td className="px-4 py-2.5 text-center">
                         {l.is_admin
                           ? <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 font-medium">管理員</span>

@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 
   let query = supabaseAdmin
     .from('login_logs')
-    .select('id, email, school_id, is_admin, ip, user_agent, created_at, schools(name, code)')
+    .select('id, email, school_id, school_name, is_admin, ip, user_agent, created_at')
     .order('created_at', { ascending: false })
     .limit(limit)
 
