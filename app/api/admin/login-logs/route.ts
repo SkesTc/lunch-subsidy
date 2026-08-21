@@ -1,18 +1,19 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
+import { getUserZoneRole, getZoneSchoolIds, isZoneAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
   const session = await auth()
-  if (!session?.user?.is_admin) return NextResponse.json({ error: '無權限' }, { status: 403 })
+  if (!session?.user?.email) return NextResponse.json({ error: '未登入' }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
   const limit = Number(searchParams.get('limit') || '200')
   const search = searchParams.get('search') || ''
 
-  const zoneUser = await getUserZoneRole(session.user.email!)
-  const allowedIds = zoneUser ? await getZoneSchoolIds(zoneUser) : null
+  const zoneUser = await getUserZoneRole(session.user.email)
+  if (!zoneUser || !isZoneAdmin(zoneUser)) return NextResponse.json({ error: '無權限' }, { status: 403 })
+  const allowedIds = await getZoneSchoolIds(zoneUser)
 
   let query = supabaseAdmin
     .from('login_logs')
