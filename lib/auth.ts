@@ -38,7 +38,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       await supabaseAdmin.from('login_logs').insert({
         email: user.email,
-        school_name: schoolName,
+        school_id: schoolId || null,
         is_admin: profile?.is_admin ?? isAdmin,
       })
       return true
