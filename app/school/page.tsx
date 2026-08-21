@@ -27,7 +27,13 @@ export default async function SchoolDashboard() {
   const impersonate = session.user.is_admin && impersonateCookie
     ? (() => { try { return JSON.parse(impersonateCookie.value) } catch { return null } })()
     : null
-  const effectiveSchoolId: number = impersonate?.school_id ?? session.user.school_id!
+  let effectiveSchoolId: number = impersonate?.school_id ?? session.user.school_id ?? 0
+  if (!effectiveSchoolId && session.user.email) {
+    // session 快取可能過時（剛綁定），直接查 DB 確認
+    const { data: freshProfile } = await supabaseAdmin
+      .from('user_profiles').select('school_id').eq('email', session.user.email).single()
+    effectiveSchoolId = freshProfile?.school_id ?? 0
+  }
   if (!effectiveSchoolId) redirect('/bind-school')
 
   // 先取得學校的 zone_id，再載入對應區別設定
