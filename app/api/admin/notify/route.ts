@@ -1,25 +1,28 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getAllSettings } from '@/lib/settings'
-import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
+import { getUserZoneRole, getZoneSchoolIds, isZoneAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
   const session = await auth()
-  if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
+  if (!session?.user?.email) return NextResponse.json({ error: '未登入' }, { status: 401 })
 
   const { schoolIds, subject, message } = await req.json()
   if (!schoolIds?.length) return NextResponse.json({ error: '未選擇學校' }, { status: 400 })
 
   // 區管理者只能發送自己分區的學校
-  const zoneUser = await getUserZoneRole(session.user.email!)
-  const allowedIds = zoneUser ? await getZoneSchoolIds(zoneUser) : null
+  const zoneUser = await getUserZoneRole(session.user.email)
+  if (!zoneUser || !isZoneAdmin(zoneUser)) return NextResponse.json({ error: '權限不足' }, { status: 403 })
+  const allowedIds = await getZoneSchoolIds(zoneUser)
   const filteredIds: number[] = allowedIds !== null
     ? schoolIds.filter((id: number) => allowedIds.includes(id))
     : schoolIds
   if (!filteredIds.length) return NextResponse.json({ error: '無符合權限的學校' }, { status: 403 })
 
-  const settings = await getAllSettings()
+  // 使用發信者所屬區別的設定（確保 adminName/hostSchool 等為正確的區別資料）
+  const zoneId = zoneUser.zone_id ?? undefined
+  const settings = await getAllSettings(zoneId)
   const gasUrl = settings.gas_url || ''
   const gasSecret = settings.gas_secret || ''
 
@@ -29,6 +32,7 @@ export async function POST(req: Request) {
   const adminTitle = settings.admin_title || ''
   const adminPhone = settings.admin_phone || ''
   const hostSchool = settings.host_school || ''
+  const zoneName = settings.system_name || ''
 
   // 一次查詢取得帳號 + 學校 + 聯絡人資訊（取代逐一讀 Storage 檔案）
   const { data: profiles } = await supabaseAdmin
@@ -49,6 +53,7 @@ export async function POST(req: Request) {
       .replace(/\{adminTitle\}/g, adminTitle)
       .replace(/\{adminPhone\}/g, adminPhone)
       .replace(/\{hostSchool\}/g, hostSchool)
+      .replace(/\{zoneName\}/g, zoneName)
       .replace(/\{contactName\}/g, profile.contact_name || '')
       .replace(/\{contactTitle\}/g, profile.contact_title || '')
 

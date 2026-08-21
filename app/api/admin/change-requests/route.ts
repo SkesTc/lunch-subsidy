@@ -352,6 +352,7 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
     .replace(/\{adminTitle\}/g, String(allSettings.admin_title || ''))
     .replace(/\{adminPhone\}/g, String(allSettings.admin_phone || ''))
     .replace(/\{hostSchool\}/g, String(allSettings.host_school || ''))
+    .replace(/\{zoneName\}/g, String(allSettings.system_name || ''))
     .replace(/\{planLabel\}/g, planLabel)
 
   await fetch(gasUrl, {

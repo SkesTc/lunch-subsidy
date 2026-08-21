@@ -72,6 +72,7 @@ export default function NotifyTab({ isSuperAdmin }: { isSuperAdmin?: boolean }) 
             ['{schoolName}', '學校名稱'],
             ['{contactName}', '學校承辦人姓名'],
             ['{contactTitle}', '學校承辦人職稱'],
+            ['{zoneName}', '區別名稱（例：臺中市第2區）'],
             ['{hostSchool}', '承辦學校名稱'],
             ['{adminName}', '承辦人姓名'],
             ['{adminTitle}', '承辦人職稱'],
