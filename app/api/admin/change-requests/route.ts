@@ -368,6 +368,7 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
   const htmlBody = wrapEmailHtml({
     body: plainBody,
     zoneName: String(allSettings.system_name || ''),
+    systemName: String(allSettings.system_name || ''),
     hostSchool: String(allSettings.host_school || ''),
     adminName: String(allSettings.admin_name || ''),
     adminTitle: String(allSettings.admin_title || ''),

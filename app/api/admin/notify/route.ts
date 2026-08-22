@@ -59,7 +59,7 @@ export async function POST(req: Request) {
       .replace(/\{contactTitle\}/g, profile.contact_title || '')
 
     try {
-      const htmlBody = wrapEmailHtml({ body: bodyText, zoneName, hostSchool, adminName, adminTitle, adminPhone })
+      const htmlBody = wrapEmailHtml({ body: bodyText, zoneName, systemName: zoneName, hostSchool, adminName, adminTitle, adminPhone })
       const res = await fetch(gasUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

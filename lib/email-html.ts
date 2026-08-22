@@ -8,12 +8,13 @@ function esc(s: string) {
 export function wrapEmailHtml(opts: {
   body: string
   zoneName: string
+  systemName: string
   hostSchool: string
   adminName: string
   adminTitle: string
   adminPhone: string
 }): string {
-  const { body, zoneName, hostSchool, adminName, adminTitle, adminPhone } = opts
+  const { body, zoneName, systemName, hostSchool, adminName, adminTitle, adminPhone } = opts
 
   const bodyHtml = body
     .split('\n')
@@ -44,7 +45,7 @@ export function wrapEmailHtml(opts: {
         <td style="width:44px;height:44px;background:rgba(255,255,255,0.15);border-radius:10px;text-align:center;vertical-align:middle;font-size:22px">📋</td>
         <td style="padding-left:14px;vertical-align:middle">
           <p style="margin:0;color:#ffffff;font-size:17px;font-weight:bold;letter-spacing:0.02em">${esc(zoneName)}</p>
-          <p style="margin:3px 0 0;color:#bfdbfe;font-size:12px">免費營養午餐核銷系統通知</p>
+          <p style="margin:3px 0 0;color:#bfdbfe;font-size:12px">${esc(systemName)}通知</p>
         </td>
       </tr></table>
     </td>
