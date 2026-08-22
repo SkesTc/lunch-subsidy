@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getAllSettings, getSettingsForZone } from '@/lib/settings'
+import { getAllSettings, getSettingsForZone, getGlobalSystemName } from '@/lib/settings'
 import { getUserZoneRole, getZoneSchoolIds, isZoneAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 import { wrapEmailHtml } from '@/lib/email-html'
@@ -29,12 +29,13 @@ export async function POST(req: Request) {
 
   if (!gasUrl) return NextResponse.json({ error: '未設定 GAS 網址，請至系統設定填入' }, { status: 500 })
 
-  // 取分區短名稱（zones.name）作為信件大標，system_name 作為副標
+  // 取分區短名稱（zones.name）作為信件大標，系統設定 system_name 作為副標
   let zoneShortName = String(settings.system_name || '')
   if (zoneId) {
     const { data: zr } = await supabaseAdmin.from('zones').select('name').eq('id', zoneId).single()
     if (zr?.name) zoneShortName = zr.name
   }
+  const globalSystemName = await getGlobalSystemName()
 
   const adminName = settings.admin_name || '承辦人員'
   const adminTitle = settings.admin_title || ''
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
       .replace(/\{contactTitle\}/g, profile.contact_title || '')
 
     try {
-      const htmlBody = wrapEmailHtml({ body: bodyText, zoneName: zoneShortName, systemName: zoneName, hostSchool, adminName, adminTitle, adminPhone })
+      const htmlBody = wrapEmailHtml({ body: bodyText, zoneName: zoneShortName, systemName: globalSystemName, hostSchool, adminName, adminTitle, adminPhone })
       const res = await fetch(gasUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

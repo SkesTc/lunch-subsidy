@@ -124,6 +124,18 @@ export async function getSettingsForZone(zoneId: number): Promise<AllSettings> {
   return fetchSettingsForZone(zoneId)
 }
 
+/** 直接讀 settings.json 的系統名稱（不受分區覆蓋影響） */
+export async function getGlobalSystemName(): Promise<string> {
+  try {
+    const { data } = await supabaseAdmin.storage.from(BUCKET).download(PATH)
+    if (data) {
+      const parsed = JSON.parse(await data.text())
+      if (parsed.system_name) return parsed.system_name
+    }
+  } catch { /* ignore */ }
+  return DEFAULTS.system_name
+}
+
 /** 讓外部可以主動清除快取（儲存設定後呼叫） */
 export function invalidateSettingsCache() {
   _cacheMap.clear()

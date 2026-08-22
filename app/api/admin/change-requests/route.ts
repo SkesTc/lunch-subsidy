@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getActiveSchoolYear, getAllSettings, getSettingsForZone } from '@/lib/settings'
+import { getActiveSchoolYear, getAllSettings, getSettingsForZone, getGlobalSystemName } from '@/lib/settings'
 import { getGasSettings, gasDeleteFile } from '@/lib/gas'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
 import { wrapEmailHtml } from '@/lib/email-html'
@@ -366,10 +366,11 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
     .replace(/\{planName\}/g, planName)
 
   const plainBody = applyVars(String(tmplBody))
+  const globalSystemName = await getGlobalSystemName()
   const htmlBody = wrapEmailHtml({
     body: plainBody,
     zoneName: zoneShortName,
-    systemName: String(allSettings.system_name || zoneShortName),
+    systemName: globalSystemName,
     hostSchool: String(allSettings.host_school || ''),
     adminName: String(allSettings.admin_name || ''),
     adminTitle: String(allSettings.admin_title || ''),
