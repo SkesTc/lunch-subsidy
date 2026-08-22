@@ -64,8 +64,8 @@ const DEFAULTS: AllSettings = {
   block3_deadline: '2026-06-30',
 }
 
-// 模組層級快取，TTL 60 秒
-let _cache: { data: AllSettings; ts: number } | null = null
+// 模組層級快取，TTL 60 秒（依 zoneId 分開快取）
+const _cacheMap = new Map<number, { data: AllSettings; ts: number }>()
 const TTL = 8_000
 
 async function fetchSettings(zoneId = DEFAULT_ZONE_ID): Promise<AllSettings> {
@@ -112,9 +112,10 @@ async function fetchSettingsForZone(zoneId: number): Promise<AllSettings> {
 
 /** 統一入口：所有設定從這裡取，快取 */
 export async function getAllSettings(zoneId = DEFAULT_ZONE_ID): Promise<AllSettings> {
-  if (_cache && Date.now() - _cache.ts < TTL) return _cache.data
+  const cached = _cacheMap.get(zoneId)
+  if (cached && Date.now() - cached.ts < TTL) return cached.data
   const data = await fetchSettings(zoneId)
-  _cache = { data, ts: Date.now() }
+  _cacheMap.set(zoneId, { data, ts: Date.now() })
   return data
 }
 
@@ -125,7 +126,7 @@ export async function getSettingsForZone(zoneId: number): Promise<AllSettings> {
 
 /** 讓外部可以主動清除快取（儲存設定後呼叫） */
 export function invalidateSettingsCache() {
-  _cache = null
+  _cacheMap.clear()
 }
 
 // ── 向下相容的具名 exports ──────────────────────────────────

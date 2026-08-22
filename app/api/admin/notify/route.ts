@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getAllSettings } from '@/lib/settings'
+import { getAllSettings, getSettingsForZone } from '@/lib/settings'
 import { getUserZoneRole, getZoneSchoolIds, isZoneAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 import { wrapEmailHtml } from '@/lib/email-html'
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
   // 使用發信者所屬區別的設定（確保 adminName/hostSchool 等為正確的區別資料）
   const zoneId = zoneUser.zone_id ?? undefined
-  const settings = await getAllSettings(zoneId)
+  const settings = zoneId ? await getSettingsForZone(zoneId) : await getAllSettings()
   const gasUrl = settings.gas_url || ''
   const gasSecret = settings.gas_secret || ''
 
