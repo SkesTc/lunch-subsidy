@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { signOut } from 'next-auth/react'
+import { Spinner } from '@/components/Spinner'
 
 type Step = 'select' | 'contact'
 interface SchoolItem { id: number; code: number; district: string; name: string }
@@ -112,7 +113,7 @@ export default function BindSchoolPage() {
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-4 py-2">{error}</p>}
           <button onClick={handleSaveContact} disabled={loading || !contactName || !contactPhone}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white font-medium py-3 rounded-xl transition-colors cursor-pointer disabled:cursor-not-allowed">
-            {loading ? '儲存中...' : '儲存並進入系統'}
+            {loading ? <span className="flex items-center justify-center gap-2"><Spinner />儲存中...</span> : '儲存並進入系統'}
           </button>
           {(!contactName || !contactPhone) && (
             <p className="text-xs text-gray-400 text-center">請填寫承辦人姓名與聯絡電話後繼續</p>
