@@ -197,8 +197,8 @@ export async function PATCH(req: Request) {
           }).eq('school_id', cr.school_id).eq('semester', cr.semester).eq('school_year', schoolYear).is('plan_id', null)
       await updateSettleQ
 
-      // 寄信（非阻斷核准結果）
-      sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, schoolName, admin_note, isApproved: true }).catch(() => {})
+      // 寄信
+      await sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, schoolName, admin_note, isApproved: true })
 
     } else if (
       cr.request_type === 'scan_reupload' || cr.request_type === 'remittance_reupload' ||
@@ -304,8 +304,8 @@ export async function PATCH(req: Request) {
       }
     }
 
-    // 寄信（非阻斷）
-    sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, schoolName, admin_note, isApproved: false }).catch(() => {})
+    // 寄信
+    await sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, schoolName, admin_note, isApproved: false })
   }
 
   return NextResponse.json({ ok: true })
