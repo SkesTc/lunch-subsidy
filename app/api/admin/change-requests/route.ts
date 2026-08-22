@@ -144,10 +144,11 @@ export async function PATCH(req: Request) {
 
   // 取學校所屬分區的設定（承辦學校、承辦人等用分區設定）
   const { data: zoneRow } = await supabaseAdmin
-    .from('zones').select('id').contains('zone_ids', [cr.school_id]).single()
+    .from('zones').select('id, name').contains('zone_ids', [cr.school_id]).single()
   const allSettings = zoneRow
     ? await getSettingsForZone(zoneRow.id)
     : globalSettings
+  const zoneShortName = zoneRow?.name || String(allSettings.system_name || '')
 
   const gasUrl = globalSettings.gas_url || ''
   const gasSecret = globalSettings.gas_secret || ''
@@ -367,8 +368,8 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
   const plainBody = applyVars(String(tmplBody))
   const htmlBody = wrapEmailHtml({
     body: plainBody,
-    zoneName: String(allSettings.system_name || ''),
-    systemName: String(allSettings.system_name || ''),
+    zoneName: zoneShortName,
+    systemName: String(allSettings.system_name || zoneShortName),
     hostSchool: String(allSettings.host_school || ''),
     adminName: String(allSettings.admin_name || ''),
     adminTitle: String(allSettings.admin_title || ''),
