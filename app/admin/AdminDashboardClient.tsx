@@ -149,7 +149,13 @@ export default function AdminDashboardClient({
       )}
       {tab === 'review' && (
         <ReviewTab key={tabKeys.review} activeSchoolYear={activeSchoolYear} schools={schools} profiles={profiles} contacts={contacts} plans={livePlans}
-          onReviewDone={() => { setPendingCount(c => Math.max(0, c - 1)); setOverviewKey(k => k + 1) }} />
+          onReviewDone={() => {
+            setPendingCount(c => Math.max(0, c - 1))
+            Promise.all([
+              fetch('/api/admin/settlements').then(r => r.json()).then(d => { if (Array.isArray(d)) setLiveSettlements(d) }).catch(() => {}),
+              fetch(`/api/admin/plan-amounts?school_year=${activeSchoolYear}`).then(r => r.json()).then(d => { if (Array.isArray(d)) setLivePlanAmounts(d) }).catch(() => {}),
+            ]).then(() => setOverviewKey(k => k + 1))
+          }} />
       )}
       {tab === 'accounts' && (
         <AccountsTab key={tabKeys.accounts} currentUserEmail={currentUserEmail} isSuperAdmin={isSuperAdmin} />
