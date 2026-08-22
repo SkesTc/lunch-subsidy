@@ -1,12 +1,12 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 
 type Step = 'select' | 'contact'
 interface SchoolItem { id: number; code: number; district: string; name: string }
 
 export default function BindSchoolPage() {
-  const router = useRouter()
+  const [userEmail, setUserEmail] = useState('')
   const [step, setStep] = useState<Step>('select')
   const [schools, setSchools] = useState<SchoolItem[]>([])
   const [selectedCode, setSelectedCode] = useState<number | ''>('')
@@ -19,6 +19,7 @@ export default function BindSchoolPage() {
 
   useEffect(() => {
     fetch('/api/schools/list').then(r => r.json()).then(setSchools).catch(() => {})
+    fetch('/api/auth/session').then(r => r.json()).then(d => setUserEmail(d?.user?.email || '')).catch(() => {})
   }, [])
 
   const districts = Array.from(new Set(schools.map(s => s.district)))
@@ -75,6 +76,11 @@ export default function BindSchoolPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-lg space-y-6">
+          {userEmail && (
+            <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-500">
+              <span>已用 <span className="font-medium text-gray-700">{userEmail}</span> 登入</span>
+            </div>
+          )}
           <div className="text-center">
             <div className="text-3xl mb-2">✅</div>
             <h1 className="text-xl font-bold text-gray-800">綁定成功！</h1>
@@ -121,6 +127,15 @@ export default function BindSchoolPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-lg space-y-6">
+        {userEmail && (
+          <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs text-gray-500">
+            <span>已用 <span className="font-medium text-gray-700">{userEmail}</span> 登入</span>
+            <button onClick={() => signOut({ callbackUrl: '/login' })}
+              className="text-red-500 hover:text-red-700 font-medium transition-colors cursor-pointer">
+              登出
+            </button>
+          </div>
+        )}
         <div className="text-center">
           <div className="text-3xl mb-2">🏫</div>
           <h1 className="text-xl font-bold text-gray-800">選擇您的學校</h1>
