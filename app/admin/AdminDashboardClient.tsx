@@ -252,6 +252,9 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   const [reviewing, setReviewing] = useState<string | null>(null)
   // checkboxes
   const [selected, setSelected] = useState<Set<number>>(new Set())
+  // delete file confirm modal
+  const [deleteConfirm, setDeleteConfirm] = useState<{ settlementId: number; fileType: 'scan' | 'remittance' } | null>(null)
+  const [deleteError, setDeleteError] = useState('')
   // notify modal
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [notifyToast, setNotifyToast] = useState('')
@@ -526,8 +529,14 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
     const a = document.createElement('a'); a.href = url; a.download = `第${effectiveSem}學期_賸餘款彙整.xlsx`; a.click()
   }
 
-  async function handleDeleteFile(settlementId: number, fileType: 'scan' | 'remittance') {
-    if (!confirm('確定要刪除此檔案？此操作無法復原。')) return
+  function handleDeleteFile(settlementId: number, fileType: 'scan' | 'remittance') {
+    setDeleteError('')
+    setDeleteConfirm({ settlementId, fileType })
+  }
+
+  async function confirmDeleteFile() {
+    if (!deleteConfirm) return
+    const { settlementId, fileType } = deleteConfirm
     const res = await fetch('/api/admin/file', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -540,9 +549,10 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
           ? { ...s, scan_file_path: null, status: 'downloaded' }
           : { ...s, remittance_file_path: null }
       }))
+      setDeleteConfirm(null)
     } else {
       const data = await res.json().catch(() => ({}))
-      alert(`刪除失敗：${data.error || res.status}`)
+      setDeleteError(`刪除失敗：${data.error || res.status}`)
     }
   }
 
@@ -936,6 +946,30 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
           <p className="text-center text-gray-400 text-sm py-8">無符合條件的學校</p>
         )}
       </div>
+
+      {/* 刪除檔案確認 Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <h2 className="text-lg font-bold text-gray-800">確認刪除</h2>
+            <p className="text-sm text-gray-600">
+              確定要刪除此{deleteConfirm.fileType === 'scan' ? '收支結算表掃描檔' : '賸餘款送款憑單'}？<br />
+              <span className="text-red-500 font-medium">此操作無法復原。</span>
+            </p>
+            {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setDeleteConfirm(null)}
+                className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200">
+                取消
+              </button>
+              <button onClick={confirmDeleteFile}
+                className="px-4 py-2 rounded-lg text-sm text-white bg-red-500 hover:bg-red-600">
+                確認刪除
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 催收通知 Modal */}
       {notifyOpen && (
