@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getAllSettings } from '@/lib/settings'
 import { getUserZoneRole, getZoneSchoolIds, isZoneAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
+import { wrapEmailHtml } from '@/lib/email-html'
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -58,10 +59,11 @@ export async function POST(req: Request) {
       .replace(/\{contactTitle\}/g, profile.contact_title || '')
 
     try {
+      const htmlBody = wrapEmailHtml({ body: bodyText, zoneName, hostSchool, adminName, adminTitle, adminPhone })
       const res = await fetch(gasUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'notify', secret: gasSecret, to: profile.email, subject, body: bodyText, noReply: true }),
+        body: JSON.stringify({ action: 'notify', secret: gasSecret, to: profile.email, subject, body: bodyText, htmlBody, noReply: true }),
       })
       const data = await res.json().catch(() => ({}))
       return { email: profile.email, school: schoolName, ok: res.ok && data.ok, error: data.error }

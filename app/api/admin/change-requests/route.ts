@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getActiveSchoolYear, getAllSettings, getSettingsForZone } from '@/lib/settings'
 import { getGasSettings, gasDeleteFile } from '@/lib/gas'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
+import { wrapEmailHtml } from '@/lib/email-html'
 import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 
@@ -362,9 +363,19 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
     .replace(/\{zoneName\}/g, String(allSettings.system_name || ''))
     .replace(/\{planLabel\}/g, planLabel)
 
+  const plainBody = applyVars(String(tmplBody))
+  const htmlBody = wrapEmailHtml({
+    body: plainBody,
+    zoneName: String(allSettings.system_name || ''),
+    hostSchool: String(allSettings.host_school || ''),
+    adminName: String(allSettings.admin_name || ''),
+    adminTitle: String(allSettings.admin_title || ''),
+    adminPhone: String(allSettings.admin_phone || ''),
+  })
+
   await fetch(gasUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'notify', secret: gasSecret, to: profile.email, subject: applyVars(String(tmplSubject)), body: applyVars(String(tmplBody)), noReply: true }),
+    body: JSON.stringify({ action: 'notify', secret: gasSecret, to: profile.email, subject: applyVars(String(tmplSubject)), body: plainBody, htmlBody, noReply: true }),
   })
 }
