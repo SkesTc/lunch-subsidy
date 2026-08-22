@@ -259,8 +259,8 @@ export async function PATCH(req: Request) {
         })
       }
 
-      // 寄信（非阻斷）
-      sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, schoolName, admin_note, isApproved: true }).catch(() => {})
+      // 寄信
+      await sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, schoolName, admin_note, isApproved: true })
     }
 
   } else if (action === 'rejected') {
