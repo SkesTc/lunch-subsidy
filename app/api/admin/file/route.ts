@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getGasSettings, gasDeleteFile } from '@/lib/gas'
-import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
+import { getUserZoneRole, isSuperAdmin, getZoneSchoolIds } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
@@ -25,7 +25,6 @@ export async function DELETE(req: Request) {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
   const zoneUser = await getUserZoneRole(session.user.email!)
-  if (!zoneUser || !isSuperAdmin(zoneUser)) return NextResponse.json({ error: '僅限超級管理者' }, { status: 403 })
 
   const { settlementId, fileType } = await req.json()
 
@@ -34,6 +33,14 @@ export async function DELETE(req: Request) {
     .eq('id', settlementId).single()
 
   if (!settle) return NextResponse.json({ error: '找不到記錄' }, { status: 404 })
+
+  // zone_admin 只能刪自己分區的學校
+  if (zoneUser && !isSuperAdmin(zoneUser)) {
+    const allowedIds = await getZoneSchoolIds(zoneUser)
+    if (allowedIds !== null && !allowedIds.includes(settle.school_id)) {
+      return NextResponse.json({ error: '無權限刪除此學校檔案' }, { status: 403 })
+    }
+  }
 
   const filePath = fileType === 'scan' ? settle.scan_file_path : settle.remittance_file_path
   if (!filePath) return NextResponse.json({ error: '無檔案' }, { status: 400 })

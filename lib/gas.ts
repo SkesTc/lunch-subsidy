@@ -50,6 +50,21 @@ export async function gasGetFolderUrl(opts: {
   return (data.folderUrl as string) || null
 }
 
+export async function gasRenameFile(opts: {
+  gasUrl: string
+  gasSecret: string
+  fileId: string
+  filename?: string  // 若省略，GAS 將自動移除「待審_」前綴
+}): Promise<void> {
+  const res = await fetch(opts.gasUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'rename', secret: opts.gasSecret, fileId: opts.fileId, ...(opts.filename ? { filename: opts.filename } : {}) }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.ok) throw new Error(data.error || 'GAS 改名失敗')
+}
+
 export async function gasDeleteFile(opts: {
   gasUrl: string
   gasSecret: string

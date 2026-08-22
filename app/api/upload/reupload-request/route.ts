@@ -55,7 +55,8 @@ export async function POST(req: Request) {
   const label = type === 'settlement' ? '收支結算表掃描檔' : '賸餘款送款憑單'
   const codePrefix = zoneName ? `${zoneName}-${String(school?.code || '').padStart(3, '0')}` : String(school?.code || '').padStart(3, '0')
   const ext = file.name.split('.').pop()
-  const filename = `PENDING_${codePrefix}_${school?.name}_第${semester}學期_${label}.${ext}`
+  const baseFilename = `${codePrefix}_${school?.name}_第${semester}學期_${label}.${ext}`
+  const filename = `待審_${baseFilename}`
   const bytes = await file.arrayBuffer()
   const zoneFolder = zoneName ? `${zoneName}/` : ''
 
@@ -63,7 +64,7 @@ export async function POST(req: Request) {
   try {
     pendingPath = await gasUploadFile({
       gasUrl, gasSecret, folderId: driveFolderId,
-      subFolder: `${schoolYear}學年度/${zoneFolder}待審`,
+      subFolder: `${schoolYear}學年度/${zoneFolder}第${semester}學期`,
       filename, mimeType: file.type || 'application/octet-stream', buffer: bytes,
     })
   } catch (e: unknown) {

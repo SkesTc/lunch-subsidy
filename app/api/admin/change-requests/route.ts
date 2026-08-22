@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getActiveSchoolYear, getAllSettings, getSettingsForZone, getGlobalSystemName } from '@/lib/settings'
-import { getGasSettings, gasDeleteFile } from '@/lib/gas'
+import { getGasSettings, gasDeleteFile, gasRenameFile } from '@/lib/gas'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
 import { wrapEmailHtml } from '@/lib/email-html'
 import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
@@ -257,6 +257,12 @@ export async function PATCH(req: Request) {
           ...(cr.plan_id ? { plan_id: cr.plan_id } : {}),
           ...updateData,
         })
+      }
+
+      // 審核通過：移除檔名的「待審_」前綴
+      if (cr.pending_file_path && gasUrl && !String(cr.pending_file_path).includes('/')) {
+        gasRenameFile({ gasUrl, gasSecret, fileId: String(cr.pending_file_path) })
+          .catch(e => console.error('rename file after approval:', e))
       }
 
       // 寄信

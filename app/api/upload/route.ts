@@ -52,7 +52,8 @@ export async function POST(req: Request) {
   }
   const label = type === 'settlement' ? '收支結算表掃描檔' : '賸餘款送款憑單'
   const codePrefix = zoneName ? `${zoneName}-${String(school?.code || '').padStart(3, '0')}` : String(school?.code || '').padStart(3, '0')
-  const filename = `${codePrefix}_${school?.name}_第${semester}學期_${label}.${ext}`
+  const baseFilename = `${codePrefix}_${school?.name}_第${semester}學期_${label}.${ext}`
+  const filename = `待審_${baseFilename}`
   const zoneFolder = zoneName ? `${zoneName}/` : ''
 
   let storedPath = ''

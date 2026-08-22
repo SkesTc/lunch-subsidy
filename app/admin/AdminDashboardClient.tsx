@@ -540,6 +540,9 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
           ? { ...s, scan_file_path: null, status: 'downloaded' }
           : { ...s, remittance_file_path: null }
       }))
+    } else {
+      const data = await res.json().catch(() => ({}))
+      alert(`刪除失敗：${data.error || res.status}`)
     }
   }
 
