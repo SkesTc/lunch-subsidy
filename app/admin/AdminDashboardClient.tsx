@@ -255,6 +255,7 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   // delete file confirm modal
   const [deleteConfirm, setDeleteConfirm] = useState<{ settlementId: number; fileType: 'scan' | 'remittance' } | null>(null)
   const [deleteError, setDeleteError] = useState('')
+  const [deleting, setDeleting] = useState(false)
   // notify modal
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [notifyToast, setNotifyToast] = useState('')
@@ -537,11 +538,14 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   async function confirmDeleteFile() {
     if (!deleteConfirm) return
     const { settlementId, fileType } = deleteConfirm
+    setDeleting(true)
+    setDeleteError('')
     const res = await fetch('/api/admin/file', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ settlementId, fileType }),
     })
+    setDeleting(false)
     if (res.ok) {
       setSettlements(prev => prev.map(s => {
         if (s.id !== settlementId) return s
@@ -958,13 +962,14 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
             </p>
             {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setDeleteConfirm(null)}
-                className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200">
+              <button onClick={() => setDeleteConfirm(null)} disabled={deleting}
+                className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50">
                 取消
               </button>
-              <button onClick={confirmDeleteFile}
-                className="px-4 py-2 rounded-lg text-sm text-white bg-red-500 hover:bg-red-600">
-                確認刪除
+              <button onClick={confirmDeleteFile} disabled={deleting}
+                className="px-4 py-2 rounded-lg text-sm text-white bg-red-500 hover:bg-red-600 disabled:opacity-70 flex items-center gap-2">
+                {deleting && <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                {deleting ? '刪除中...' : '確認刪除'}
               </button>
             </div>
           </div>
