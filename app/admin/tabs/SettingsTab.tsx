@@ -109,12 +109,12 @@ export default function SettingsTab({ activeSchoolYear }: { activeSchoolYear: st
             <p className="text-xs text-gray-400 mt-1">顯示於登入頁；同時作為全區經費收支結算表抬頭</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">承辦人姓名</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">系統設計姓名</label>
             <input value={settings.admin_name} onChange={e => set('admin_name', e.target.value)}
               className={inputCls} placeholder="林孟甫主任" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">承辦人職稱</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">系統設計職稱</label>
             <input value={settings.admin_title} onChange={e => set('admin_title', e.target.value)}
               className={inputCls} placeholder="主任" />
           </div>

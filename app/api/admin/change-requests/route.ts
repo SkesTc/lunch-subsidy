@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getActiveSchoolYear, getAllSettings } from '@/lib/settings'
+import { getActiveSchoolYear, getAllSettings, getSettingsForZone } from '@/lib/settings'
 import { getGasSettings, gasDeleteFile } from '@/lib/gas'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
 import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
@@ -132,8 +132,8 @@ export async function PATCH(req: Request) {
   const { id, action, admin_note } = await req.json()
   if (!id || !action) return NextResponse.json({ error: '資料不完整' }, { status: 400 })
 
-  // 【優化1】並行：取得申請記錄 + 設定快取 + 學年度
-  const [{ data: cr }, schoolYear, allSettings] = await Promise.all([
+  // 【優化1】並行：取得申請記錄 + 學年度 + 全域設定（GAS 設定用）
+  const [{ data: cr }, schoolYear, globalSettings] = await Promise.all([
     supabaseAdmin.from('change_requests').select('*, schools(name)').eq('id', id).single(),
     getActiveSchoolYear(),
     getAllSettings(),
@@ -141,8 +141,15 @@ export async function PATCH(req: Request) {
   if (!cr) return NextResponse.json({ error: '找不到申請' }, { status: 404 })
   if (cr.status !== 'pending') return NextResponse.json({ error: '已審核' }, { status: 409 })
 
-  const gasUrl = allSettings.gas_url || ''
-  const gasSecret = allSettings.gas_secret || ''
+  // 取學校所屬分區的設定（承辦學校、承辦人等用分區設定）
+  const { data: zoneRow } = await supabaseAdmin
+    .from('zones').select('id').contains('zone_ids', [cr.school_id]).single()
+  const allSettings = zoneRow
+    ? await getSettingsForZone(zoneRow.id)
+    : globalSettings
+
+  const gasUrl = globalSettings.gas_url || ''
+  const gasSecret = globalSettings.gas_secret || ''
   const now = new Date().toISOString()
   const schoolName = (cr.schools as unknown as { name: string } | null)?.name || ''
 
