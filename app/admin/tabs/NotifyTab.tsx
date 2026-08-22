@@ -69,24 +69,26 @@ export default function NotifyTab({ isSuperAdmin }: { isSuperAdmin?: boolean }) 
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">可用變數說明</p>
         <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
           {[
-            ['{schoolName}', '學校名稱'],
-            ['{contactName}', '學校承辦人姓名'],
-            ['{contactTitle}', '學校承辦人職稱'],
-            ['{zoneName}', '區別名稱（例：臺中市第2區）'],
-            ['{hostSchool}', '承辦學校名稱（取自各分區設定）'],
-            ['{adminName}', '承辦人姓名（取自各分區設定）'],
-            ['{adminTitle}', '承辦人職稱（取自各分區設定）'],
-            ['{adminPhone}', '承辦人電話（取自各分區設定）'],
-            ['{semLabel}', '學期（含計畫短標籤，例：免費午餐・第1學期）'],
-            ['{planLabel}', '計畫短標籤（例：免費午餐）'],
-            ['{planName}', '計畫完整名稱（例：臺中市第2區免費午餐計畫）'],
-            ['{typeLabel}', '申請類型'],
-            ['{actionNote}', '核准後操作說明（自動）'],
-            ['{adminNote}', '備註說明'],
-          ].map(([v, desc]) => (
-            <div key={v} className="flex items-baseline gap-2">
-              <span className="font-mono text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded text-xs flex-shrink-0">{v}</span>
-              <span className="text-gray-500">{desc}</span>
+            ['{schoolName}',  '學校名稱',           '社口國民小學'],
+            ['{contactName}', '學校承辦人姓名',      '王小明'],
+            ['{contactTitle}','學校承辦人職稱',      '組長'],
+            ['{zoneName}',    '區別名稱',            '臺中市第2區'],
+            ['{hostSchool}',  '承辦學校（分區設定）', '社口國民小學'],
+            ['{adminName}',   '承辦人姓名（分區設定）','林孟甫'],
+            ['{adminTitle}',  '承辦人職稱（分區設定）','主任'],
+            ['{adminPhone}',  '承辦人電話（分區設定）','(04)2562-6834'],
+            ['{semLabel}',    '學期含計畫短標籤',    '免費午餐・第1學期'],
+            ['{planLabel}',   '計畫短標籤',          '免費午餐'],
+            ['{planName}',    '計畫完整名稱',        '臺中市第2區免費午餐計畫'],
+            ['{typeLabel}',   '申請類型',            '實支金額修改'],
+            ['{actionNote}',  '核准後操作說明（自動生成）', '請至系統重新下載…'],
+            ['{adminNote}',   '審核備註',            '請於本週內完成補件'],
+          ].map(([v, desc, ex]) => (
+            <div key={v} className="flex items-start gap-2 py-0.5">
+              <span className="font-mono text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded text-xs flex-shrink-0 mt-0.5">{v}</span>
+              <span className="text-gray-500">{desc}
+                {ex && <span className="text-gray-400 ml-1">例：{ex}</span>}
+              </span>
             </div>
           ))}
         </div>
