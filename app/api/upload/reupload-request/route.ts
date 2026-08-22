@@ -52,6 +52,11 @@ export async function POST(req: Request) {
     const { data: zone } = await supabaseAdmin.from('zones').select('name').eq('id', school.zone_id).single()
     zoneName = zone?.name || ''
   }
+  let planLabel = ''
+  if (planId) {
+    const { data: plan } = await supabaseAdmin.from('plans').select('label').eq('id', planId).single()
+    planLabel = plan?.label || ''
+  }
   const label = type === 'settlement' ? '收支結算表掃描檔' : '賸餘款送款憑單'
   const codePrefix = zoneName ? `${zoneName}-${String(school?.code || '').padStart(3, '0')}` : String(school?.code || '').padStart(3, '0')
   const ext = file.name.split('.').pop()
@@ -59,12 +64,13 @@ export async function POST(req: Request) {
   const filename = `待審_${baseFilename}`
   const bytes = await file.arrayBuffer()
   const zoneFolder = zoneName ? `${zoneName}/` : ''
+  const semFolder = planLabel ? `第${semester}學期_${planLabel}` : `第${semester}學期`
 
   let pendingPath = ''
   try {
     pendingPath = await gasUploadFile({
       gasUrl, gasSecret, folderId: driveFolderId,
-      subFolder: `${schoolYear}學年度/${zoneFolder}第${semester}學期`,
+      subFolder: `${schoolYear}學年度/${zoneFolder}${semFolder}`,
       filename, mimeType: file.type || 'application/octet-stream', buffer: bytes,
     })
   } catch (e: unknown) {
