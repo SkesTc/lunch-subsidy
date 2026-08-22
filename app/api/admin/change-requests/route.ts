@@ -369,7 +369,7 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
   const globalSystemName = await getGlobalSystemName()
   const htmlBody = wrapEmailHtml({
     body: plainBody,
-    zoneName: zoneShortName,
+    zoneName: String(allSettings.system_name || ''),
     systemName: globalSystemName,
     hostSchool: String(allSettings.host_school || ''),
     adminName: String(allSettings.admin_name || ''),
