@@ -329,10 +329,10 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
     return { scan_upload: '首次上傳經費收支結算表掃描檔', scan_reupload: '經費收支結算表掃描檔重新上傳', remittance_upload: '首次上傳賸餘款送款憑單', remittance_reupload: '賸餘款送款憑單重新上傳' }[rt] || rt
   })()
 
-  const planLabel = cr.plan_id ? await (async () => {
-    const { data: p } = await supabaseAdmin.from('plans').select('label').eq('id', cr.plan_id as string).single()
-    return p?.label || ''
-  })() : ''
+  const { planLabel, planName } = cr.plan_id ? await (async () => {
+    const { data: p } = await supabaseAdmin.from('plans').select('label, name').eq('id', cr.plan_id as string).single()
+    return { planLabel: p?.label || '', planName: p?.name || p?.label || '' }
+  })() : { planLabel: '', planName: '' }
   const semLabel = planLabel ? `${planLabel}（第${cr.semester}學期）` : `第${cr.semester}學期`
   const adminNote = admin_note?.trim()
     ? `${isApproved ? '承辦備註' : '退回原因'}：${admin_note.trim()}\n\n`
@@ -362,6 +362,7 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
     .replace(/\{hostSchool\}/g, String(allSettings.host_school || ''))
     .replace(/\{zoneName\}/g, String(allSettings.system_name || ''))
     .replace(/\{planLabel\}/g, planLabel)
+    .replace(/\{planName\}/g, planName)
 
   const plainBody = applyVars(String(tmplBody))
   const htmlBody = wrapEmailHtml({
