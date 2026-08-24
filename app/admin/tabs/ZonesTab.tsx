@@ -62,6 +62,13 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [newAdmin, setNewAdmin] = useState({ email: '', role: 'zone_admin', zone_id: 0 })
   const [adminMsg, setAdminMsg] = useState('')
 
+  // 刪除區別
+  const [deleteZone, setDeleteZone] = useState<Zone | null>(null)
+  const [deleteZoneError, setDeleteZoneError] = useState('')
+  const [deletingZone, setDeletingZone] = useState(false)
+  const [forceDeleteZone, setForceDeleteZone] = useState(false)
+  const [deleteZoneCounts, setDeleteZoneCounts] = useState<{ schools: number; settings: number } | null>(null)
+
   // 跨區總覽
   const [overviewData, setOverviewData] = useState<{ school_year: string; zones: ZoneOverview[] } | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(false)
@@ -182,6 +189,26 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     else setAdminMsg('❌ ' + data.error)
   }
 
+  async function confirmDeleteZone() {
+    if (!deleteZone) return
+    setDeletingZone(true); setDeleteZoneError('')
+    const res = await fetch('/api/admin/zones', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: deleteZone.id, force: forceDeleteZone }),
+    })
+    setDeletingZone(false)
+    if (res.ok) {
+      setZones(prev => prev.filter(z => z.id !== deleteZone.id))
+      if (selectedZone?.id === deleteZone.id) setSelectedZone(null)
+      setDeleteZone(null); setForceDeleteZone(false); setDeleteZoneCounts(null)
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setDeleteZoneError(d.error || '刪除失敗')
+      if (d.counts) setDeleteZoneCounts(d.counts)
+    }
+  }
+
   async function loadOverview() {
     setOverviewLoading(true)
     const res = await fetch('/api/admin/zone-overview')
@@ -258,6 +285,12 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                   </div>
                   <div className="flex items-center gap-3">
                     {msg && <span className={`text-sm ${msgOk ? 'text-green-600' : 'text-red-600'}`}>{msg}</span>}
+                    {isSuperAdmin && (
+                      <button onClick={() => { setDeleteZone(selectedZone); setDeleteZoneError(''); setDeleteZoneCounts(null); setForceDeleteZone(false) }}
+                        className="text-sm font-medium px-4 py-2 rounded-lg cursor-pointer bg-red-50 text-red-600 hover:bg-red-100">
+                        刪除區別
+                      </button>
+                    )}
                     <button onClick={saveZone} disabled={saving}
                       className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-medium px-5 py-2 rounded-lg cursor-pointer">
                       {saving ? '儲存中...' : '儲存設定'}
@@ -438,6 +471,44 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {/* 刪除區別確認 Modal */}
+      {deleteZone && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <h2 className="text-lg font-bold text-gray-800">確認刪除區別</h2>
+            <p className="text-sm text-gray-600">
+              確定要刪除「<span className="font-medium text-gray-800">{deleteZone.name}</span>」？
+            </p>
+            {deleteZoneError && (
+              <div className="bg-red-50 rounded-lg p-3 space-y-2">
+                <p className="text-sm text-red-600">{deleteZoneError}</p>
+                {deleteZoneCounts && (
+                  <ul className="text-xs text-red-500 list-disc list-inside">
+                    {deleteZoneCounts.schools > 0 && <li>所屬學校 {deleteZoneCounts.schools} 校（將改為無區別）</li>}
+                    {deleteZoneCounts.settings > 0 && <li>區別設定資料 {deleteZoneCounts.settings} 筆</li>}
+                  </ul>
+                )}
+                <label className="flex items-center gap-2 text-xs text-red-700 cursor-pointer mt-1">
+                  <input type="checkbox" checked={forceDeleteZone} onChange={e => setForceDeleteZone(e.target.checked)} />
+                  我了解後果，強制刪除以上所有資料
+                </label>
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setDeleteZone(null)} disabled={deletingZone}
+                className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50">
+                取消
+              </button>
+              <button onClick={confirmDeleteZone} disabled={deletingZone || (!!deleteZoneError && !forceDeleteZone)}
+                className="px-4 py-2 rounded-lg text-sm text-white bg-red-500 hover:bg-red-600 disabled:opacity-40 flex items-center gap-2">
+                {deletingZone && <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                {deletingZone ? '刪除中...' : forceDeleteZone ? '強制刪除' : '確認刪除'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

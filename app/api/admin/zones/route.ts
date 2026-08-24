@@ -44,6 +44,46 @@ export async function POST(req: Request) {
   return NextResponse.json(data)
 }
 
+// DELETE /api/admin/zones — 刪除區別（僅超級管理員）
+export async function DELETE(req: Request) {
+  const session = await auth()
+  if (!session?.user?.email) return NextResponse.json({ error: '未登入' }, { status: 401 })
+
+  const zoneUser = await getUserZoneRole(session.user.email)
+  if (!zoneUser || !isSuperAdmin(zoneUser)) return NextResponse.json({ error: '僅超級管理員可操作' }, { status: 403 })
+
+  const { id, force } = await req.json()
+  if (!id) return NextResponse.json({ error: '缺少區別 ID' }, { status: 400 })
+
+  // 檢查是否有學校屬於此區
+  const { count: schoolCount } = await supabaseAdmin
+    .from('schools').select('id', { count: 'exact', head: true }).eq('zone_id', id)
+  // 檢查 zone_settings
+  const { count: settingsCount } = await supabaseAdmin
+    .from('zone_settings').select('zone_id', { count: 'exact', head: true }).eq('zone_id', id)
+
+  const hasData = (schoolCount ?? 0) > 0 || (settingsCount ?? 0) > 0
+
+  if (hasData && !force) {
+    return NextResponse.json({
+      error: '此區別下仍有學校或設定資料，無法刪除。',
+      counts: { schools: schoolCount ?? 0, settings: settingsCount ?? 0 },
+    }, { status: 409 })
+  }
+
+  if (hasData && force) {
+    await Promise.all([
+      supabaseAdmin.from('zone_settings').delete().eq('zone_id', id),
+      supabaseAdmin.from('schools').update({ zone_id: null }).eq('zone_id', id),
+      supabaseAdmin.from('user_profiles').update({ zone_id: null }).eq('zone_id', id),
+    ])
+  }
+
+  const { error } = await supabaseAdmin.from('zones').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 // PATCH /api/admin/zones — 更新區別
 export async function PATCH(req: Request) {
   const session = await auth()
