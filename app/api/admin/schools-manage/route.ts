@@ -37,10 +37,14 @@ export async function DELETE(req: Request) {
   const { id } = await req.json()
   if (!id) return NextResponse.json({ error: '缺少學校 ID' }, { status: 400 })
 
-  // 檢查是否有關聯的核銷資料
-  const { count: settleCount } = await supabaseAdmin.from('settlements').select('id', { count: 'exact', head: true }).eq('school_id', id)
-  if (settleCount && settleCount > 0) {
-    return NextResponse.json({ error: '此學校已有核銷資料，無法刪除。如需停用請改用「停用」功能。' }, { status: 409 })
+  // 檢查是否有關聯資料（settlements / school_amounts / change_requests）
+  const [{ count: settleCount }, { count: amountCount }, { count: crCount }] = await Promise.all([
+    supabaseAdmin.from('settlements').select('id', { count: 'exact', head: true }).eq('school_id', id),
+    supabaseAdmin.from('school_amounts').select('school_id', { count: 'exact', head: true }).eq('school_id', id),
+    supabaseAdmin.from('change_requests').select('id', { count: 'exact', head: true }).eq('school_id', id),
+  ])
+  if ((settleCount ?? 0) > 0 || (amountCount ?? 0) > 0 || (crCount ?? 0) > 0) {
+    return NextResponse.json({ error: '此學校已有核銷或核定金額資料，無法刪除。如需停用請改用「停用」功能。' }, { status: 409 })
   }
 
   const { error } = await supabaseAdmin.from('schools').delete().eq('id', id)
