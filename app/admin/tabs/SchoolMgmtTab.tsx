@@ -28,7 +28,7 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
   const [deleteError, setDeleteError] = useState('')
   const [deleting, setDeleting] = useState(false)
   const [forceDelete, setForceDelete] = useState(false)
-  const [deleteCounts, setDeleteCounts] = useState<{ settlements: number; amounts: number; changeRequests: number } | null>(null)
+  const [deleteCounts, setDeleteCounts] = useState<{ settlements: number; amounts: number; changeRequests: number; loginLogs: number } | null>(null)
   // CSV 批次匯入
   const [csvUploading, setCsvUploading] = useState(false)
   const [csvResult, setCsvResult] = useState<{ ok?: boolean; inserted: number; updated: number; errors: string[] } | null>(null)
@@ -440,6 +440,7 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
                     {deleteCounts.settlements > 0 && <li>核銷記錄 {deleteCounts.settlements} 筆</li>}
                     {deleteCounts.amounts > 0 && <li>核定金額 {deleteCounts.amounts} 筆</li>}
                     {deleteCounts.changeRequests > 0 && <li>審核申請 {deleteCounts.changeRequests} 筆</li>}
+                    {deleteCounts.loginLogs > 0 && <li>登入記錄 {deleteCounts.loginLogs} 筆</li>}
                   </ul>
                 )}
                 <label className="flex items-center gap-2 text-xs text-red-700 cursor-pointer mt-1">

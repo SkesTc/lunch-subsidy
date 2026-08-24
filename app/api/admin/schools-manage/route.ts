@@ -38,17 +38,18 @@ export async function DELETE(req: Request) {
   if (!id) return NextResponse.json({ error: '缺少學校 ID' }, { status: 400 })
 
   // 檢查是否有關聯資料
-  const [{ count: settleCount }, { count: amountCount }, { count: crCount }] = await Promise.all([
+  const [{ count: settleCount }, { count: amountCount }, { count: crCount }, { count: logCount }] = await Promise.all([
     supabaseAdmin.from('settlements').select('id', { count: 'exact', head: true }).eq('school_id', id),
     supabaseAdmin.from('school_amounts').select('school_id', { count: 'exact', head: true }).eq('school_id', id),
     supabaseAdmin.from('change_requests').select('id', { count: 'exact', head: true }).eq('school_id', id),
+    supabaseAdmin.from('login_logs').select('id', { count: 'exact', head: true }).eq('school_id', id),
   ])
-  const hasData = (settleCount ?? 0) > 0 || (amountCount ?? 0) > 0 || (crCount ?? 0) > 0
+  const hasData = (settleCount ?? 0) > 0 || (amountCount ?? 0) > 0 || (crCount ?? 0) > 0 || (logCount ?? 0) > 0
 
   if (hasData && !force) {
     return NextResponse.json({
       error: '此學校已有核銷或核定金額資料，無法刪除。如需停用請改用「停用」功能。',
-      counts: { settlements: settleCount ?? 0, amounts: amountCount ?? 0, changeRequests: crCount ?? 0 },
+      counts: { settlements: settleCount ?? 0, amounts: amountCount ?? 0, changeRequests: crCount ?? 0, loginLogs: logCount ?? 0 },
     }, { status: 409 })
   }
 
