@@ -34,17 +34,33 @@ export async function DELETE(req: Request) {
   const callerZone = await getUserZoneRole(session.user.email!)
   if (!callerZone || !isSuperAdmin(callerZone)) return NextResponse.json({ error: '僅限超級管理者' }, { status: 403 })
 
-  const { id } = await req.json()
+  const { id, force } = await req.json()
   if (!id) return NextResponse.json({ error: '缺少學校 ID' }, { status: 400 })
 
-  // 檢查是否有關聯資料（settlements / school_amounts / change_requests）
+  // 檢查是否有關聯資料
   const [{ count: settleCount }, { count: amountCount }, { count: crCount }] = await Promise.all([
     supabaseAdmin.from('settlements').select('id', { count: 'exact', head: true }).eq('school_id', id),
     supabaseAdmin.from('school_amounts').select('school_id', { count: 'exact', head: true }).eq('school_id', id),
     supabaseAdmin.from('change_requests').select('id', { count: 'exact', head: true }).eq('school_id', id),
   ])
-  if ((settleCount ?? 0) > 0 || (amountCount ?? 0) > 0 || (crCount ?? 0) > 0) {
-    return NextResponse.json({ error: '此學校已有核銷或核定金額資料，無法刪除。如需停用請改用「停用」功能。' }, { status: 409 })
+  const hasData = (settleCount ?? 0) > 0 || (amountCount ?? 0) > 0 || (crCount ?? 0) > 0
+
+  if (hasData && !force) {
+    return NextResponse.json({
+      error: '此學校已有核銷或核定金額資料，無法刪除。如需停用請改用「停用」功能。',
+      counts: { settlements: settleCount ?? 0, amounts: amountCount ?? 0, changeRequests: crCount ?? 0 },
+    }, { status: 409 })
+  }
+
+  if (hasData && force) {
+    // 強制刪除：先清除關聯資料
+    await Promise.all([
+      supabaseAdmin.from('change_requests').delete().eq('school_id', id),
+      supabaseAdmin.from('settlements').delete().eq('school_id', id),
+      supabaseAdmin.from('school_amounts').delete().eq('school_id', id),
+      supabaseAdmin.from('plan_amounts').delete().eq('school_id', id),
+      supabaseAdmin.from('user_profiles').update({ school_id: null }).eq('school_id', id),
+    ])
   }
 
   const { error } = await supabaseAdmin.from('schools').delete().eq('id', id)

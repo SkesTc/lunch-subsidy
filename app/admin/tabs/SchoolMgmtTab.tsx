@@ -27,6 +27,8 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
   const [deleteSchool, setDeleteSchool] = useState<SchoolFull | null>(null)
   const [deleteError, setDeleteError] = useState('')
   const [deleting, setDeleting] = useState(false)
+  const [forceDelete, setForceDelete] = useState(false)
+  const [deleteCounts, setDeleteCounts] = useState<{ settlements: number; amounts: number; changeRequests: number } | null>(null)
   // CSV 批次匯入
   const [csvUploading, setCsvUploading] = useState(false)
   const [csvResult, setCsvResult] = useState<{ ok?: boolean; inserted: number; updated: number; errors: string[] } | null>(null)
@@ -130,15 +132,16 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
     const res = await fetch('/api/admin/schools-manage', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: deleteSchool.id }),
+      body: JSON.stringify({ id: deleteSchool.id, force: forceDelete }),
     })
     setDeleting(false)
     if (res.ok) {
       setSchools(prev => prev.filter(s => s.id !== deleteSchool.id))
-      setDeleteSchool(null)
+      setDeleteSchool(null); setForceDelete(false); setDeleteCounts(null)
     } else {
       const d = await res.json().catch(() => ({}))
       setDeleteError(d.error || '刪除失敗')
+      if (d.counts) setDeleteCounts(d.counts)
     }
   }
 
@@ -427,19 +430,33 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
             <h2 className="text-lg font-bold text-gray-800">確認刪除學校</h2>
             <p className="text-sm text-gray-600">
-              確定要刪除「<span className="font-medium text-gray-800">{deleteSchool.name}</span>」？<br />
-              <span className="text-red-500 font-medium">若已有核銷資料則無法刪除，請改用「停用」。</span>
+              確定要刪除「<span className="font-medium text-gray-800">{deleteSchool.name}</span>」？
             </p>
-            {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+            {deleteError && (
+              <div className="bg-red-50 rounded-lg p-3 space-y-2">
+                <p className="text-sm text-red-600">{deleteError}</p>
+                {deleteCounts && (
+                  <ul className="text-xs text-red-500 list-disc list-inside">
+                    {deleteCounts.settlements > 0 && <li>核銷記錄 {deleteCounts.settlements} 筆</li>}
+                    {deleteCounts.amounts > 0 && <li>核定金額 {deleteCounts.amounts} 筆</li>}
+                    {deleteCounts.changeRequests > 0 && <li>審核申請 {deleteCounts.changeRequests} 筆</li>}
+                  </ul>
+                )}
+                <label className="flex items-center gap-2 text-xs text-red-700 cursor-pointer mt-1">
+                  <input type="checkbox" checked={forceDelete} onChange={e => setForceDelete(e.target.checked)} />
+                  我了解後果，強制刪除以上所有資料
+                </label>
+              </div>
+            )}
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setDeleteSchool(null)} disabled={deleting}
+              <button onClick={() => { setDeleteSchool(null); setForceDelete(false); setDeleteCounts(null); setDeleteError('') }} disabled={deleting}
                 className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50">
                 取消
               </button>
-              <button onClick={confirmDeleteSchool} disabled={deleting}
-                className="px-4 py-2 rounded-lg text-sm text-white bg-red-500 hover:bg-red-600 disabled:opacity-70 flex items-center gap-2">
+              <button onClick={confirmDeleteSchool} disabled={deleting || (!!deleteError && !forceDelete)}
+                className="px-4 py-2 rounded-lg text-sm text-white bg-red-500 hover:bg-red-600 disabled:opacity-40 flex items-center gap-2">
                 {deleting && <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                {deleting ? '刪除中...' : '確認刪除'}
+                {deleting ? '刪除中...' : forceDelete ? '強制刪除' : '確認刪除'}
               </button>
             </div>
           </div>
