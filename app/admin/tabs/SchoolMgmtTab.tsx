@@ -23,6 +23,10 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
   // 區別修改
   const [editingZone, setEditingZone] = useState<number | null>(null)
   const [zoneMsg, setZoneMsg] = useState('')
+  // 刪除學校
+  const [deleteSchool, setDeleteSchool] = useState<SchoolFull | null>(null)
+  const [deleteError, setDeleteError] = useState('')
+  const [deleting, setDeleting] = useState(false)
   // CSV 批次匯入
   const [csvUploading, setCsvUploading] = useState(false)
   const [csvResult, setCsvResult] = useState<{ ok?: boolean; inserted: number; updated: number; errors: string[] } | null>(null)
@@ -118,6 +122,24 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
     setEditingZone(null)
     setZoneMsg('✅ 已更新')
     setTimeout(() => setZoneMsg(''), 2000)
+  }
+
+  async function confirmDeleteSchool() {
+    if (!deleteSchool) return
+    setDeleting(true); setDeleteError('')
+    const res = await fetch('/api/admin/schools-manage', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: deleteSchool.id }),
+    })
+    setDeleting(false)
+    if (res.ok) {
+      setSchools(prev => prev.filter(s => s.id !== deleteSchool.id))
+      setDeleteSchool(null)
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setDeleteError(d.error || '刪除失敗')
+    }
   }
 
   async function handleImportCsv(e: React.ChangeEvent<HTMLInputElement>) {
@@ -292,10 +314,16 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
                         </span>
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        <button onClick={() => toggleActive(s)}
-                          className={`px-3 py-1 rounded text-xs cursor-pointer ${s.is_active ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>
-                          {s.is_active ? '停用' : '啟用'}
-                        </button>
+                        <div className="flex items-center justify-center gap-1">
+                          <button onClick={() => toggleActive(s)}
+                            className={`px-3 py-1 rounded text-xs cursor-pointer ${s.is_active ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-green-50 text-green-700 hover:bg-green-100'}`}>
+                            {s.is_active ? '停用' : '啟用'}
+                          </button>
+                          <button onClick={() => { setDeleteSchool(s); setDeleteError('') }}
+                            className="px-3 py-1 rounded text-xs cursor-pointer bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-600">
+                            刪除
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -389,6 +417,31 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 刪除學校確認 Modal */}
+      {deleteSchool && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+            <h2 className="text-lg font-bold text-gray-800">確認刪除學校</h2>
+            <p className="text-sm text-gray-600">
+              確定要刪除「<span className="font-medium text-gray-800">{deleteSchool.name}</span>」？<br />
+              <span className="text-red-500 font-medium">若已有核銷資料則無法刪除，請改用「停用」。</span>
+            </p>
+            {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setDeleteSchool(null)} disabled={deleting}
+                className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50">
+                取消
+              </button>
+              <button onClick={confirmDeleteSchool} disabled={deleting}
+                className="px-4 py-2 rounded-lg text-sm text-white bg-red-500 hover:bg-red-600 disabled:opacity-70 flex items-center gap-2">
+                {deleting && <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                {deleting ? '刪除中...' : '確認刪除'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -28,6 +28,26 @@ export async function POST(req: Request) {
   return NextResponse.json(data)
 }
 
+export async function DELETE(req: Request) {
+  const session = await auth()
+  if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
+  const callerZone = await getUserZoneRole(session.user.email!)
+  if (!callerZone || !isSuperAdmin(callerZone)) return NextResponse.json({ error: '僅限超級管理者' }, { status: 403 })
+
+  const { id } = await req.json()
+  if (!id) return NextResponse.json({ error: '缺少學校 ID' }, { status: 400 })
+
+  // 檢查是否有關聯的核銷資料
+  const { count: settleCount } = await supabaseAdmin.from('settlements').select('id', { count: 'exact', head: true }).eq('school_id', id)
+  if (settleCount && settleCount > 0) {
+    return NextResponse.json({ error: '此學校已有核銷資料，無法刪除。如需停用請改用「停用」功能。' }, { status: 409 })
+  }
+
+  const { error } = await supabaseAdmin.from('schools').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}
+
 export async function PATCH(req: Request) {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
