@@ -182,7 +182,12 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
     const a = document.createElement('a'); a.href = url; a.download = `第${bankSem}學期_帳戶彙整.xlsx`; a.click()
   }
 
-  const filtered = schools.filter(s => !search || s.name.includes(search) || String(s.code).includes(search))
+  const [zoneFilter, setZoneFilter] = useState<number | null>(null)
+  const filtered = schools.filter(s => {
+    if (search && !s.name.includes(search) && !String(s.code).includes(search)) return false
+    if (zoneFilter !== null && s.zone_id !== zoneFilter) return false
+    return true
+  })
   const activeCount = schools.filter(s => s.is_active).length
 
   const subTabCls = (t: typeof subTab) =>
@@ -270,8 +275,15 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
             </div>
           )}
 
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜尋學校名稱或編號..."
-            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400" />
+          <div className="flex gap-2">
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="搜尋學校名稱或編號..."
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400" />
+            <select value={zoneFilter ?? ''} onChange={e => setZoneFilter(e.target.value === '' ? null : Number(e.target.value))}
+              className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400 bg-white">
+              <option value="">所有區別</option>
+              {zones.map(z => <option key={z.id} value={z.id}>{z.name}</option>)}
+            </select>
+          </div>
 
           {loading ? (
             <BlockSpinner />
