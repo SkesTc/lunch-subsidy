@@ -53,12 +53,13 @@ export async function DELETE(req: Request) {
   }
 
   if (hasData && force) {
-    // 強制刪除：先清除關聯資料
+    // 強制刪除：先清除關聯資料（依外鍵順序）
+    await supabaseAdmin.from('change_requests').delete().eq('school_id', id)
+    await supabaseAdmin.from('settlements').delete().eq('school_id', id)
     await Promise.all([
-      supabaseAdmin.from('change_requests').delete().eq('school_id', id),
-      supabaseAdmin.from('settlements').delete().eq('school_id', id),
       supabaseAdmin.from('school_amounts').delete().eq('school_id', id),
       supabaseAdmin.from('plan_amounts').delete().eq('school_id', id),
+      supabaseAdmin.from('login_logs').delete().eq('school_id', id),
       supabaseAdmin.from('user_profiles').update({ school_id: null }).eq('school_id', id),
     ])
   }
