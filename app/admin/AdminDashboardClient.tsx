@@ -1075,7 +1075,12 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
       body: JSON.stringify({ schoolId: req.school_id, schoolYear: req.school_year, action, adminNote: reviewNote[key] || '' }),
     })
     setReviewing(null)
-    if (res.ok) { load(); onReviewDone() }
+    if (res.ok) {
+      load(); onReviewDone()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      alert(`操作失敗：${d.error || res.status}`)
+    }
   }
 
   async function handleSettleReview(id: string, action: 'approved' | 'rejected') {
