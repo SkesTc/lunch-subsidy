@@ -1072,7 +1072,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
     const res = await fetch('/api/admin/account-changes', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ school_id: req.school_id, school_year: req.school_year, action, admin_note: reviewNote[key] || '' }),
+      body: JSON.stringify({ schoolId: req.school_id, schoolYear: req.school_year, action, adminNote: reviewNote[key] || '' }),
     })
     setReviewing(null)
     if (res.ok) { load(); onReviewDone() }
