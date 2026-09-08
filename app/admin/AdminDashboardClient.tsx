@@ -1122,7 +1122,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
       : planFilter === '__no_plan__'
         ? !r.plan_id
         : r.plan_id === planFilter
-    const matchType = typeFilter === 'all' || typeFilter === 'account' ? true : r.request_type === typeFilter
+    const matchType = typeFilter === 'all' ? true : typeFilter === 'account' ? false : r.request_type === typeFilter
     return matchStatus && matchPlan && matchType
   })
   // 帳戶變更申請有計畫過濾時隱藏（帳戶申請無 plan_id 概念）
