@@ -91,7 +91,6 @@ export async function POST(req: Request) {
 
   if (insertError) return NextResponse.json({ error: `建立審核記錄失敗：${insertError.message}` }, { status: 500 })
 
-  const label = type === 'settlement' ? '收支結算表掃描檔' : '賸餘款送款憑單'
   writeLog({
     actorEmail: session.user.email,
     actorRole: 'school',
