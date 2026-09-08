@@ -1156,7 +1156,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
         <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
           className="ml-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-purple-400 bg-white cursor-pointer">
           <option value="all">全部類型</option>
-          <option value="account">帳戶變更</option>
+          <option value="account">帳戶變更申請</option>
           <option value="scan_upload">首次上傳掃描檔</option>
           <option value="scan_reupload">重新上傳掃描檔</option>
           <option value="remittance_upload">首次上傳送款憑單</option>
