@@ -5,6 +5,7 @@ import { getGasSettings, gasDeleteFile, gasRenameFile } from '@/lib/gas'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
 import { wrapEmailHtml } from '@/lib/email-html'
 import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
+import { writeLog } from '@/lib/operationLog'
 import { NextResponse } from 'next/server'
 
 const BUCKET = 'settlement-files'
@@ -315,6 +316,21 @@ export async function PATCH(req: Request) {
     // 寄信
     await sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, schoolName, admin_note, isApproved: false })
   }
+
+  const typeLabels: Record<string, string> = {
+    scan_upload: '收支結算表掃描檔上傳', scan_reupload: '收支結算表掃描檔重新上傳',
+    remittance_upload: '賸餘款送款憑單上傳', remittance_reupload: '賸餘款送款憑單重新上傳',
+    amount_modify: '實支金額修改', account_change: '帳戶變更',
+  }
+  writeLog({
+    actorEmail: session.user.email!,
+    actorRole: 'admin',
+    schoolId: cr.school_id as number,
+    schoolName,
+    action: action === 'approved' ? 'approve_change_request' : 'reject_change_request',
+    detail: `${action === 'approved' ? '核准' : '拒絕'}申請：${typeLabels[cr.request_type as string] || cr.request_type}`,
+    metadata: { changeRequestId: id, requestType: cr.request_type, adminNote: admin_note },
+  }).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

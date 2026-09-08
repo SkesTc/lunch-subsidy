@@ -3,6 +3,7 @@ import { getEffectiveSchoolId } from '@/lib/impersonate'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getGasSettings, gasUploadFile } from '@/lib/gas'
 import { getActiveSchoolYear } from '@/lib/schoolYear'
+import { writeLog } from '@/lib/operationLog'
 import { NextResponse } from 'next/server'
 
 export async function POST(req: Request) {
@@ -89,5 +90,17 @@ export async function POST(req: Request) {
   })
 
   if (insertError) return NextResponse.json({ error: `建立審核記錄失敗：${insertError.message}` }, { status: 500 })
+
+  const label = type === 'settlement' ? '收支結算表掃描檔' : '賸餘款送款憑單'
+  writeLog({
+    actorEmail: session.user.email,
+    actorRole: 'school',
+    schoolId: schoolId,
+    schoolName: school?.name,
+    action: type === 'settlement' ? 'reupload_scan' : 'reupload_remittance',
+    detail: `重新上傳${label}（${schoolYear}學年度第${semester}學期）`,
+    metadata: { schoolYear, semester, type, planId, reason },
+  }).catch(() => {})
+
   return NextResponse.json({ ok: true })
 }

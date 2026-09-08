@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getGasSettings, gasDeleteFile } from '@/lib/gas'
 import { getUserZoneRole, isSuperAdmin, getZoneSchoolIds } from '@/lib/zones'
+import { writeLog } from '@/lib/operationLog'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
@@ -72,6 +73,17 @@ export async function DELETE(req: Request) {
   }
 
   await supabaseAdmin.from('settlements').update(updateData).eq('id', settlementId)
+
+  const { data: school } = await supabaseAdmin.from('schools').select('name').eq('id', settle.school_id).single()
+  writeLog({
+    actorEmail: session.user.email!,
+    actorRole: 'admin',
+    schoolId: settle.school_id,
+    schoolName: school?.name,
+    action: 'delete_file',
+    detail: `刪除${fileType === 'scan' ? '收支結算表掃描檔' : '賸餘款送款憑單'}（第${settle.semester}學期）`,
+    metadata: { settlementId, fileType },
+  }).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

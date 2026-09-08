@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
+import { writeLog } from '@/lib/operationLog'
 import { NextResponse } from 'next/server'
 
 const BUCKET = 'settlement-files'
@@ -81,6 +82,17 @@ export async function PATCH(req: Request) {
 
   const blob = new Blob([JSON.stringify(updated, null, 2)], { type: 'application/json' })
   await supabaseAdmin.storage.from(BUCKET).upload(path, blob, { upsert: true, contentType: 'application/json' })
+
+  const { data: school } = await supabaseAdmin.from('schools').select('name').eq('id', schoolId).single()
+  writeLog({
+    actorEmail: session.user.email!,
+    actorRole: 'admin',
+    schoolId: Number(schoolId),
+    schoolName: school?.name,
+    action: action === 'approve' ? 'approve_account_change' : 'reject_account_change',
+    detail: `${action === 'approve' ? '核准' : '拒絕'}帳戶變更申請`,
+    metadata: { schoolId, schoolYear, adminNote },
+  }).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

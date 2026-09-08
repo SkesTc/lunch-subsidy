@@ -48,7 +48,14 @@ export default function AccountsTab({
   const [logSearch, setLogSearch] = useState('')
   const [logLoading, setLogLoading] = useState(true)
 
-  const [subTab, setSubTab] = useState<'schools' | 'admins' | 'logs'>('schools')
+  // 操作紀錄
+  interface OpLog { id: string; actor_email: string; actor_role: string | null; school_id: number | null; school_name: string | null; action: string; detail: string; created_at: string }
+  const [opLogs, setOpLogs] = useState<OpLog[]>([])
+  const [opSearch, setOpSearch] = useState('')
+  const [opLoading, setOpLoading] = useState(false)
+  const [opLoaded, setOpLoaded] = useState(false)
+
+  const [subTab, setSubTab] = useState<'schools' | 'admins' | 'logs' | 'oplogs'>('schools')
 
   function loadAccounts() {
     setLoading(true)
@@ -62,6 +69,12 @@ export default function AccountsTab({
     setLogLoading(true)
     fetch(`/api/admin/login-logs?limit=200${q ? `&search=${encodeURIComponent(q)}` : ''}`)
       .then(r => r.json()).then(d => { setLogs(Array.isArray(d) ? d : []); setLogLoading(false) })
+  }
+
+  function loadOpLogs(q = '') {
+    setOpLoading(true)
+    fetch(`/api/admin/operation-logs?limit=500${q ? `&search=${encodeURIComponent(q)}` : ''}`)
+      .then(r => r.json()).then(d => { setOpLogs(Array.isArray(d) ? d : []); setOpLoading(false); setOpLoaded(true) })
   }
 
   useEffect(() => {
@@ -146,10 +159,11 @@ export default function AccountsTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         <button className={subTabCls('schools')} onClick={() => setSubTab('schools')}>🏫 各校帳號</button>
         {isSuperAdmin && <button className={subTabCls('admins')} onClick={() => setSubTab('admins')}>🔑 管理員設定</button>}
         <button className={subTabCls('logs')} onClick={() => setSubTab('logs')}>📋 登入紀錄</button>
+        <button className={subTabCls('oplogs')} onClick={() => { setSubTab('oplogs'); if (!opLoaded) loadOpLogs() }}>🗒️ 操作紀錄</button>
       </div>
 
       {/* 各校帳號 */}
@@ -343,6 +357,57 @@ export default function AccountsTab({
                           ? <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 font-medium">管理員</span>
                           : <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-500">學校</span>}
                       </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 操作紀錄 */}
+      {subTab === 'oplogs' && (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center gap-4">
+            <h2 className="font-semibold text-gray-800 whitespace-nowrap">操作紀錄</h2>
+            <input value={opSearch} onChange={e => setOpSearch(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && loadOpLogs(opSearch)}
+              placeholder="搜尋操作者 Email、學校名稱或說明..."
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-400" />
+            <button onClick={() => loadOpLogs(opSearch)}
+              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg whitespace-nowrap">搜尋</button>
+          </div>
+          {opLoading ? (
+            <div className="py-10 text-center text-sm text-gray-400"><Spinner /> 載入中...</div>
+          ) : opLogs.length === 0 ? (
+            <div className="py-10 text-center text-sm text-gray-400">尚無操作紀錄</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 whitespace-nowrap">時間</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 whitespace-nowrap">操作者</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 whitespace-nowrap">身分</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 whitespace-nowrap">學校</th>
+                    <th className="px-4 py-2.5 text-left text-xs font-medium text-gray-500">操作說明</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {opLogs.map(l => (
+                    <tr key={l.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap">
+                        {l.created_at ? new Date(l.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-700 text-xs">{l.actor_email}</td>
+                      <td className="px-4 py-2.5 text-center">
+                        {l.actor_role === 'admin'
+                          ? <span className="px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-700 font-medium">管理員</span>
+                          : <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-500">學校</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500 text-xs">{l.school_name || <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-2.5 text-gray-700">{l.detail}</td>
                     </tr>
                   ))}
                 </tbody>
