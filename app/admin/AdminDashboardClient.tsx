@@ -1052,6 +1052,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
   const [loading, setLoading] = useState(true)
   const [subTab, setSubTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
   const [planFilter, setPlanFilter] = useState<string | null>(null) // null = 全部計畫
+  const [typeFilter, setTypeFilter] = useState<string>('all') // 申請類型篩選
 
   function load() {
     setLoading(true)
@@ -1112,7 +1113,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
 
   if (loading) return <BlockSpinner />
 
-  // 依子分頁 + 計畫 過濾
+  // 依子分頁 + 計畫 + 類型 過濾
   const filteredSettle = settleReqs.filter(r => {
     const matchStatus = subTab === 'pending' ? r.status === 'pending' :
       subTab === 'approved' ? r.status === 'approved' : r.status === 'rejected'
@@ -1121,11 +1122,13 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
       : planFilter === '__no_plan__'
         ? !r.plan_id
         : r.plan_id === planFilter
-    return matchStatus && matchPlan
+    const matchType = typeFilter === 'all' || typeFilter === 'account' ? true : r.request_type === typeFilter
+    return matchStatus && matchPlan && matchType
   })
   // 帳戶變更申請有計畫過濾時隱藏（帳戶申請無 plan_id 概念）
   const filteredAccount = accountRequests.filter(r => {
     if (planFilter !== null && planFilter !== '__no_plan__') return false
+    if (typeFilter !== 'all' && typeFilter !== 'account') return false
     return subTab === 'pending' ? r.status === 'pending' :
       subTab === 'approved' ? r.status === 'approved' : r.status === 'rejected'
   })
@@ -1150,7 +1153,17 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
           已拒絕
           {rejectedCount > 0 && <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${subTab === 'rejected' ? 'bg-white text-purple-700' : 'bg-red-100 text-red-600'}`}>{rejectedCount}</span>}
         </button>
-        <button onClick={load} className="ml-auto text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 cursor-pointer">↻ 重新整理</button>
+        <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+          className="ml-auto border border-gray-300 rounded-lg px-3 py-1.5 text-sm text-gray-600 outline-none focus:ring-2 focus:ring-purple-400 bg-white cursor-pointer">
+          <option value="all">全部類型</option>
+          <option value="account">帳戶變更</option>
+          <option value="scan_upload">首次上傳掃描檔</option>
+          <option value="scan_reupload">重新上傳掃描檔</option>
+          <option value="remittance_upload">首次上傳送款憑單</option>
+          <option value="remittance_reupload">重新上傳送款憑單</option>
+          <option value="amount_modify">修改實支金額</option>
+        </select>
+        <button onClick={load} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 cursor-pointer">↻ 重新整理</button>
       </div>
 
       {/* 計畫篩選（有計畫時顯示） */}
