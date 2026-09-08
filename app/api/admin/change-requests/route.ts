@@ -119,7 +119,7 @@ export async function GET() {
       return { ...r, existing_file_path: null, existing_amount: null, ...financial }
     }
     if (r.request_type === 'amount_modify') {
-      return { ...r, existing_file_path: null, existing_amount: settle?.business_expense ?? null, ...financial }
+      return { ...r, existing_file_path: null, existing_amount: (r.old_amount ?? settle?.business_expense) ?? null, ...financial }
     }
     return { ...r, existing_file_path: null, existing_amount: null, ...financial }
   })

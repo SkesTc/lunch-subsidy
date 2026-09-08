@@ -48,6 +48,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '已有待審核的修改申請，請等待審核完成' }, { status: 409 })
   }
 
+  // 查當前實支作為舊金額
+  let old_amount: number | null = null
+  const settleQ = plan_id
+    ? supabaseAdmin.from('settlements').select('business_expense, total_expense')
+        .eq('school_id', schoolId).eq('plan_id', plan_id).eq('semester', semester).eq('school_year', schoolYear).maybeSingle()
+    : supabaseAdmin.from('settlements').select('business_expense, total_expense')
+        .eq('school_id', schoolId).eq('semester', semester).eq('school_year', schoolYear).is('plan_id', null).maybeSingle()
+  const { data: settle } = await settleQ
+  old_amount = settle?.total_expense ?? settle?.business_expense ?? null
+
   const { error } = await supabaseAdmin.from('change_requests').insert({
     school_id: schoolId,
     school_year: schoolYear,
@@ -55,6 +65,7 @@ export async function POST(req: Request) {
     ...(plan_id ? { plan_id } : {}),
     request_type: 'amount_modify',
     new_amount,
+    old_amount,
     reason: reason.trim(),
   })
 
