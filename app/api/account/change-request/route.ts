@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getActiveSchoolYear } from '@/lib/schoolYear'
 import { getGasSettings, gasUploadFile } from '@/lib/gas'
+import { writeLog } from '@/lib/operationLog'
 import { NextResponse } from 'next/server'
 
 const BUCKET = 'settlement-files'
@@ -76,6 +77,16 @@ export async function POST(req: Request) {
   await supabaseAdmin.storage.from(BUCKET).upload(
     requestPath(session.user.school_id, schoolYear), blob, { upsert: true, contentType: 'application/json' }
   )
+
+  writeLog({
+    actorEmail: session.user.email!,
+    actorRole: 'school',
+    schoolId: session.user.school_id,
+    schoolName: school?.name,
+    action: 'submit_account_change',
+    detail: '送出帳戶變更申請',
+    metadata: { schoolYear, bank_name, branch_name, bank_code },
+  }).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

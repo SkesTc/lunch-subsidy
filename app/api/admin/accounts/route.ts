@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { invalidateProfileCache } from '@/lib/profile-cache'
 import { getUserZoneRole, getZoneSchoolIds, isSuperAdmin } from '@/lib/zones'
+import { writeLog } from '@/lib/operationLog'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -43,6 +44,14 @@ export async function POST(req: Request) {
     await supabaseAdmin.from('user_profiles').insert({ email, is_admin: true, role: adminRole, zone_id: zone_id || null })
   }
   invalidateProfileCache(email)
+  const ROLE_LABELS: Record<string, string> = { super_admin: '超級管理員', zone_admin: '區管理員' }
+  writeLog({
+    actorEmail: session.user.email!,
+    actorRole: 'admin',
+    action: 'add_admin',
+    detail: `新增管理員帳號：${email}（${ROLE_LABELS[adminRole] || adminRole}）`,
+    metadata: { email, role: adminRole, zone_id },
+  }).catch(() => {})
   return NextResponse.json({ ok: true })
 }
 
@@ -57,6 +66,13 @@ export async function DELETE(req: Request) {
 
   await supabaseAdmin.from('user_profiles').delete().eq('email', email)
   invalidateProfileCache(email)
+  writeLog({
+    actorEmail: session.user.email!,
+    actorRole: 'admin',
+    action: 'delete_account',
+    detail: `刪除帳號：${email}`,
+    metadata: { email },
+  }).catch(() => {})
   return NextResponse.json({ ok: true })
 }
 

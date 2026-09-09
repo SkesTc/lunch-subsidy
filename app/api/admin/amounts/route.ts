@@ -2,6 +2,7 @@ import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getActiveSchoolYear } from '@/lib/schoolYear'
 import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
+import { writeLog } from '@/lib/operationLog'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
@@ -43,6 +44,17 @@ export async function POST(req: Request) {
     await supabaseAdmin.from('school_amounts')
       .insert({ school_id, school_year, sem1_amount, sem2_amount, approved_total })
   }
+
+  const { data: school } = await supabaseAdmin.from('schools').select('name').eq('id', school_id).single()
+  writeLog({
+    actorEmail: session.user.email!,
+    actorRole: 'admin',
+    schoolId: Number(school_id),
+    schoolName: school?.name,
+    action: 'update_amounts',
+    detail: `修改核定金額（${school_year}學年度）：第1學期 NT$ ${(sem1_amount || 0).toLocaleString()}、第2學期 NT$ ${(sem2_amount || 0).toLocaleString()}`,
+    metadata: { school_year, sem1_amount, sem2_amount },
+  }).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

@@ -1,6 +1,7 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
+import { writeLog } from '@/lib/operationLog'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
@@ -25,6 +26,15 @@ export async function POST(req: Request) {
   if (!code || !district || !name) return NextResponse.json({ error: '請填寫所有欄位' }, { status: 400 })
   const { data, error } = await supabaseAdmin.from('schools').insert({ code, district, name, is_active: true, approved_total: 0, sem1_amount: 0, sem2_amount: 0, zone_id: zone_id || 2 }).select().single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  writeLog({
+    actorEmail: session.user.email!,
+    actorRole: 'admin',
+    schoolId: data?.id,
+    schoolName: name,
+    action: 'create_school',
+    detail: `新增學校：${name}（編號 ${code}）`,
+    metadata: { code, district, name, zone_id },
+  }).catch(() => {})
   return NextResponse.json(data)
 }
 
@@ -65,8 +75,18 @@ export async function DELETE(req: Request) {
     ])
   }
 
+  const { data: schoolRow } = await supabaseAdmin.from('schools').select('name, code').eq('id', id).single()
   const { error } = await supabaseAdmin.from('schools').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  writeLog({
+    actorEmail: session.user.email!,
+    actorRole: 'admin',
+    schoolId: Number(id),
+    schoolName: schoolRow?.name,
+    action: 'delete_school',
+    detail: `刪除學校：${schoolRow?.name}（編號 ${schoolRow?.code}）${force ? '（強制刪除含關聯資料）' : ''}`,
+    metadata: { id, force },
+  }).catch(() => {})
   return NextResponse.json({ ok: true })
 }
 
@@ -82,6 +102,19 @@ export async function PATCH(req: Request) {
   if (district !== undefined) payload.district = district
   if (name !== undefined) payload.name = name
   if (zone_id !== undefined) payload.zone_id = zone_id
+  const { data: schoolRow } = await supabaseAdmin.from('schools').select('name, code').eq('id', id).single()
   await supabaseAdmin.from('schools').update(payload).eq('id', id)
+  const changeDesc = is_active !== undefined
+    ? `${is_active ? '啟用' : '停用'}學校：${schoolRow?.name}`
+    : `編輯學校資料：${name || schoolRow?.name}`
+  writeLog({
+    actorEmail: session.user.email!,
+    actorRole: 'admin',
+    schoolId: Number(id),
+    schoolName: name || schoolRow?.name,
+    action: is_active !== undefined ? (is_active ? 'enable_school' : 'disable_school') : 'update_school',
+    detail: changeDesc,
+    metadata: payload,
+  }).catch(() => {})
   return NextResponse.json({ ok: true })
 }
