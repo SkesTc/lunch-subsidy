@@ -245,6 +245,7 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   const [bindFilter, setBindFilter] = useState<StatusFilter>('all')
   const [scanFilter, setScanFilter] = useState<StatusFilter>('all')
   const [remitFilter, setRemitFilter] = useState<StatusFilter>('all')
+  const [expenseFilter, setExpenseFilter] = useState<StatusFilter>('all')
   const [showRemittanceMenu, setShowRemittanceMenu] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [hostSchool, setHostSchool] = useState('')
@@ -398,7 +399,9 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
       : effectiveSem === 2
     const matchRemit = !showRemitCol || remitFilter === 'all' ? true
       : remitFilter === 'done' ? !!x.settle?.remittance_file_path : !x.settle?.remittance_file_path
-    return matchZone && matchDistrict && matchSearch && matchBind && matchScan && matchRemit
+    const hasExpense = (x.settle?.total_expense || 0) > 0
+    const matchExpense = expenseFilter === 'all' ? true : expenseFilter === 'done' ? hasExpense : !hasExpense
+    return matchZone && matchDistrict && matchSearch && matchBind && matchScan && matchRemit && matchExpense
   })
 
   // stats 用 semSchools（已過濾有核定金額的學校）
@@ -813,7 +816,7 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
                   送款憑單 <FilterSelect value={remitFilter} onChange={setRemitFilter} />
                 </th>
               )}
-              <th className="text-right px-4 py-3 text-gray-600 font-medium">實支金額</th>
+              <th className="text-right px-4 py-3 text-gray-600 font-medium">實支金額 <FilterSelect value={expenseFilter} onChange={setExpenseFilter} /></th>
               <th className="text-right px-4 py-3 text-gray-600 font-medium">應繳回</th>
             </tr>
           </thead>
