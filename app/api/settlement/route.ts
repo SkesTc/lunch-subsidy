@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getAllSettings } from '@/lib/settings'
 import { NextResponse } from 'next/server'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
+import { writeLog } from '@/lib/operationLog'
 
 export async function GET(req: Request) {
   const session = await auth()
@@ -97,6 +98,17 @@ export async function POST(req: Request) {
     const { error } = await supabaseAdmin.from('settlements').insert(payload)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   }
+
+  const { data: school } = await supabaseAdmin.from('schools').select('name').eq('id', schoolId).single()
+  writeLog({
+    actorEmail: session.user.email,
+    actorRole: 'school',
+    schoolId,
+    schoolName: school?.name,
+    action: 'submit_expense',
+    detail: `填入實支金額（${schoolYear}學年度第${semester}學期）：NT$ ${D.toLocaleString()}`,
+    metadata: { schoolYear, semester, plan_id, personnel_expense, business_expense, equipment_expense, total_expense: D },
+  }).catch(() => {})
 
   return NextResponse.json({ ok: true, D, E, F })
 }
