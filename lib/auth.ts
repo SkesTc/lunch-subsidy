@@ -28,8 +28,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           is_admin: isAdmin,
         })
       }
-      // 寫入登入紀錄
-      const schoolId = profile?.school_id || null
+      // 寫入登入紀錄（重查 profile 確保 school_id 最新）
+      const { data: latestProfile } = await supabaseAdmin
+        .from('user_profiles').select('school_id, is_admin').eq('email', user.email).single()
+      const schoolId = latestProfile?.school_id || null
       let schoolName: string | null = null
       if (schoolId) {
         const { data: school } = await supabaseAdmin.from('schools').select('name').eq('id', schoolId).single()
@@ -39,7 +41,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: user.email,
         school_id: schoolId,
         school_name: schoolName,
-        is_admin: profile?.is_admin ?? isAdmin,
+        is_admin: latestProfile?.is_admin ?? profile?.is_admin ?? isAdmin,
       })
       return true
     },

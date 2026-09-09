@@ -20,6 +20,6 @@ export async function writeLog(opts: {
       metadata: opts.metadata || null,
     })
   } catch (e) {
-    console.error('writeLog failed:', e)
+    console.error('writeLog failed:', JSON.stringify(e))
   }
 }
