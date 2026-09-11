@@ -71,6 +71,9 @@ export async function POST(req: Request) {
     if (!zoneUser || !isSuperAdmin(zoneUser)) return NextResponse.json({ error: '僅限超級管理者' }, { status: 403 })
   }
 
+  // 管理員手動測試通知信：走一般手動備份流程，但額外寄出通知信（驗證 backup_notify_email 是否正常）
+  const testNotify = !isTrigger && body.testNotify === true
+
   const type = isTrigger ? 'scheduled' : (body.type || 'manual') as 'manual' | 'scheduled' | 'school_year'
   const settings = await getAllSettings()
   const { gasUrl, gasSecret } = await getGasSettings()
@@ -120,24 +123,26 @@ export async function POST(req: Request) {
       }),
     }).catch(() => {})
 
-    // 定時備份：寄通知信
-    if (isTrigger && settings.backup_notify_email && gasUrl) {
+    // 定時備份 或 管理員手動測試：寄通知信
+    if ((isTrigger || testNotify) && settings.backup_notify_email && gasUrl) {
       const notifyEmail = String(settings.backup_notify_email)
       const sizeMB = (json.length / 1024 / 1024).toFixed(2)
-      fetch(gasUrl, {
+      const subjectPrefix = testNotify ? '【核銷系統】🔔 測試：定時備份完成通知' : '【核銷系統】定時備份完成通知'
+      const bodyPrefix = testNotify ? '（此為管理員手動觸發的測試信，非實際定時備份）\n\n' : ''
+      await fetch(gasUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'notify',
           secret: gasSecret,
           to: notifyEmail,
-          subject: `【核銷系統】定時備份完成通知`,
-          body: `備份類型：${type}\n時間：${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}\n檔案：${filename}（${sizeMB} MB）\n\n系統已自動上傳至 Google Drive 備份資料夾。`,
+          subject: subjectPrefix,
+          body: `${bodyPrefix}備份類型：${type}\n時間：${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}\n檔案：${filename}（${sizeMB} MB）\n\n系統已自動上傳至 Google Drive 備份資料夾。`,
         }),
       }).catch(() => {})
     }
 
-    return NextResponse.json({ ok: true, filename, fileId: data.fileId })
+    return NextResponse.json({ ok: true, filename, fileId: data.fileId, notified: (isTrigger || testNotify) && !!settings.backup_notify_email })
   } catch (e) {
     // 失敗時寄通知
     const settings2 = await getAllSettings()

@@ -53,6 +53,8 @@ export default function BackupTab() {
   const [loadingList, setLoadingList] = useState(false)
   const [backing, setBacking] = useState(false)
   const [backupMsg, setBackupMsg] = useState('')
+  const [testingNotify, setTestingNotify] = useState(false)
+  const [testNotifyMsg, setTestNotifyMsg] = useState('')
   const [restoreModal, setRestoreModal] = useState<BackupFile | null>(null)
   const [restoreScopes, setRestoreScopes] = useState<string[]>(Object.keys(SCOPE_LABELS))
   const [restoring, setRestoring] = useState(false)
@@ -119,6 +121,25 @@ export default function BackupTab() {
     setBacking(false)
   }
 
+  async function testNotify() {
+    setTestingNotify(true); setTestNotifyMsg('')
+    const res = await fetch('/api/admin/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'manual', testNotify: true }),
+    })
+    const d = await res.json()
+    if (d.ok && d.notified) {
+      setTestNotifyMsg(`✅ 已寄出測試通知信至 ${settings.backup_notify_email}，請確認信箱是否收到`)
+      loadBackups()
+    } else if (d.ok) {
+      setTestNotifyMsg('⚠️ 備份已完成，但未寄出通知信（請確認「定時備份通知信收件人」已填寫）')
+    } else {
+      setTestNotifyMsg(`❌ ${d.error || '測試失敗'}`)
+    }
+    setTestingNotify(false)
+  }
+
   async function deleteBackup(fileId: string) {
     if (!confirm('確定要刪除此備份？')) return
     await fetch('/api/admin/backup', {
@@ -163,8 +184,16 @@ export default function BackupTab() {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">定時備份通知信收件人</label>
-          <input value={settings.backup_notify_email} onChange={e => setSettings(s => ({ ...s, backup_notify_email: e.target.value }))}
-            className={inputCls} placeholder="admin@xxx.edu.tw" />
+          <div className="flex gap-2">
+            <input value={settings.backup_notify_email} onChange={e => setSettings(s => ({ ...s, backup_notify_email: e.target.value }))}
+              className={inputCls} placeholder="admin@xxx.edu.tw" />
+            <button type="button" onClick={testNotify} disabled={testingNotify || !settings.backup_notify_email || !settings.backup_folder_id}
+              className="flex-shrink-0 bg-gray-100 hover:bg-gray-200 disabled:opacity-40 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg cursor-pointer whitespace-nowrap">
+              {testingNotify ? <span className="flex items-center gap-1"><Spinner size="xs" />測試中...</span> : '🔔 測試通知信'}
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">點「測試通知信」會實際執行一次備份並寄出測試通知，請先儲存設定</p>
+          {testNotifyMsg && <p className={`text-sm font-medium mt-1 ${testNotifyMsg.startsWith('✅') ? 'text-green-700' : testNotifyMsg.startsWith('⚠️') ? 'text-orange-600' : 'text-red-600'}`}>{testNotifyMsg}</p>}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
