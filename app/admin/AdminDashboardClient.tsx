@@ -1284,6 +1284,13 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
   const [planFilter, setPlanFilter] = useState<string | null>(null) // null = 全部計畫
   const [typeFilter, setTypeFilter] = useState<string>('all') // 申請類型篩選
   const [viewer, setViewer] = useState<{ fileId: string; fileExt: string | null } | null>(null)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    action: 'approve' | 'reject' | 'approved' | 'rejected'
+    label: string
+    schoolName: string
+    typeDesc: string
+    onConfirm: () => void
+  } | null>(null)
 
   function load() {
     setLoading(true)
@@ -1370,6 +1377,30 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
 
   return (
     <div className="space-y-4">
+      {/* 確認對話框 */}
+      {confirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4">
+            <div className={`text-center mb-4 text-3xl`}>{confirmDialog.action === 'approve' || confirmDialog.action === 'approved' ? '✅' : '⛔'}</div>
+            <h3 className="text-base font-bold text-gray-800 text-center mb-1">確認{confirmDialog.label}？</h3>
+            <p className="text-sm text-gray-500 text-center mb-4">此操作送出後<span className="text-red-500 font-medium">無法撤銷</span></p>
+            <div className="bg-gray-50 rounded-xl p-3 mb-5 space-y-1 text-sm">
+              <div><span className="text-gray-400">學校：</span><span className="font-medium text-gray-800">{confirmDialog.schoolName}</span></div>
+              <div><span className="text-gray-400">申請項目：</span><span className="font-medium text-gray-800">{confirmDialog.typeDesc}</span></div>
+              <div><span className="text-gray-400">操作：</span><span className={`font-bold ${confirmDialog.action === 'approve' || confirmDialog.action === 'approved' ? 'text-green-600' : 'text-red-500'}`}>{confirmDialog.label}</span></div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDialog(null)}
+                className="flex-1 border border-gray-300 text-gray-600 font-medium py-2.5 rounded-xl hover:bg-gray-50 cursor-pointer">取消</button>
+              <button onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null) }}
+                className={`flex-1 text-white font-bold py-2.5 rounded-xl cursor-pointer ${confirmDialog.action === 'approve' || confirmDialog.action === 'approved' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-500 hover:bg-red-600'}`}>
+                確認{confirmDialog.label}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 子分頁 + 重新整理 */}
       <div className="flex items-center gap-2">
         <button className={subTabCls('pending')} onClick={() => setSubTab('pending')}>
@@ -1457,12 +1488,13 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
                   <div className="flex gap-2 items-center">
                     <input value={reviewNote[key] || ''} onChange={e => setReviewNote(p => ({ ...p, [key]: e.target.value }))}
                       placeholder="備註（選填）" className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-blue-400" />
-                    <button onClick={() => handleAccountReview(req, 'approve')} disabled={reviewing === key}
-                      className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs px-4 py-1.5 rounded-lg cursor-pointer">
-                      {reviewing === key ? <span className='flex items-center gap-1'><Spinner size='xs' /> 處理中...</span> : '核准'}
+                    <button onClick={() => setConfirmDialog({ action: 'approve', label: '核准', schoolName: req.school_name, typeDesc: '帳戶變更申請', onConfirm: () => handleAccountReview(req, 'approve') })} disabled={reviewing === key}
+                      className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg cursor-pointer">
+                      {reviewing === key ? <span className='flex items-center gap-1'><Spinner size='xs' /> 處理中...</span> : '✓ 核准'}
                     </button>
-                    <button onClick={() => handleAccountReview(req, 'reject')} disabled={reviewing === key}
-                      className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs px-4 py-1.5 rounded-lg cursor-pointer">拒絕</button>
+                    <div className="w-3" />
+                    <button onClick={() => setConfirmDialog({ action: 'reject', label: '拒絕', schoolName: req.school_name, typeDesc: '帳戶變更申請', onConfirm: () => handleAccountReview(req, 'reject') })} disabled={reviewing === key}
+                      className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg cursor-pointer">✕ 拒絕</button>
                   </div>
                 )}
                 {isDone && (
@@ -1601,12 +1633,13 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
                   <div className="flex gap-2 items-center">
                     <input value={settleNote[req.id] || ''} onChange={e => setSettleNote(p => ({ ...p, [req.id]: e.target.value }))}
                       placeholder="備註（選填）" className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-xs outline-none focus:ring-1 focus:ring-violet-400" />
-                    <button onClick={() => handleSettleReview(req.id, 'approved')} disabled={reviewing === req.id}
-                      className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-xs px-4 py-1.5 rounded-lg cursor-pointer">
-                      {reviewing === req.id ? <span className='flex items-center gap-1'><Spinner size='xs' /> 處理中...</span> : '核准'}
+                    <button onClick={() => setConfirmDialog({ action: 'approved', label: '核准', schoolName: req.schools?.name || '', typeDesc: tl, onConfirm: () => handleSettleReview(req.id, 'approved') })} disabled={reviewing === req.id}
+                      className="bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg cursor-pointer">
+                      {reviewing === req.id ? <span className='flex items-center gap-1'><Spinner size='xs' /> 處理中...</span> : '✓ 核准'}
                     </button>
-                    <button onClick={() => handleSettleReview(req.id, 'rejected')} disabled={reviewing === req.id}
-                      className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs px-4 py-1.5 rounded-lg cursor-pointer">拒絕</button>
+                    <div className="w-3" />
+                    <button onClick={() => setConfirmDialog({ action: 'rejected', label: '拒絕', schoolName: req.schools?.name || '', typeDesc: tl, onConfirm: () => handleSettleReview(req.id, 'rejected') })} disabled={reviewing === req.id}
+                      className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium px-6 py-2 rounded-lg cursor-pointer">✕ 拒絕</button>
                   </div>
                 )}
               </div>

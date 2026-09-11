@@ -144,10 +144,15 @@ export async function PATCH(req: Request) {
   if (cr.status !== 'pending') return NextResponse.json({ error: '已審核' }, { status: 409 })
 
   // 取學校所屬分區的設定（承辦學校、承辦人等用分區設定）
-  const { data: zoneRow } = await supabaseAdmin
-    .from('zones').select('id, name').contains('zone_ids', [cr.school_id]).single()
-  const allSettings = zoneRow
-    ? await getSettingsForZone(zoneRow.id)
+  // 先從 schools 取 zone_id，再查分區資訊
+  const { data: schoolRow } = await supabaseAdmin
+    .from('schools').select('zone_id').eq('id', cr.school_id).single()
+  const schoolZoneId = schoolRow?.zone_id ?? null
+  const { data: zoneRow } = schoolZoneId
+    ? await supabaseAdmin.from('zones').select('id, name').eq('id', schoolZoneId).single()
+    : { data: null }
+  const allSettings = schoolZoneId
+    ? await getSettingsForZone(schoolZoneId)
     : globalSettings
   const zoneShortName = zoneRow?.name || String(allSettings.system_name || '')
 
