@@ -235,14 +235,10 @@ function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt
       <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white shrink-0">
         <span className="text-sm font-medium">檔案預覽</span>
         <div className="flex items-center gap-2">
-          {showAsImage && (
-            <>
-              <button onClick={() => setRotation(r => (r - 90 + 360) % 360)}
-                className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↺ 逆時針</button>
-              <button onClick={() => setRotation(r => (r + 90) % 360)}
-                className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↻ 順時針</button>
-            </>
-          )}
+          <button onClick={() => setRotation(r => (r - 90 + 360) % 360)}
+            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↺ 逆時針</button>
+          <button onClick={() => setRotation(r => (r + 90) % 360)}
+            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↻ 順時針</button>
           <a href={`https://drive.google.com/file/d/${fileId}/view`} target="_blank" rel="noopener noreferrer"
             className="px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-sm">🔗 開啟原始連結</a>
           <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">✕ 關閉</button>
@@ -263,7 +259,15 @@ function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt
             }}
           />
         ) : (
-          <div style={{ position: 'absolute', inset: 0 }}>
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            width: isLandscape ? '90vh' : '100%',
+            height: isLandscape ? '90vw' : '100%',
+            transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+            transition: 'transform 0.25s ease',
+          }}>
             <iframe
               src={`https://drive.google.com/file/d/${fileId}/preview`}
               className="w-full h-full border-none"
