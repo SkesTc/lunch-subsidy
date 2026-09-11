@@ -28,6 +28,7 @@ export async function GET(req: Request) {
 
   // 優先用 Drive API 直接串流（快）
   const driveAuth = getDriveAuth()
+  console.log('[file-proxy] using', driveAuth ? 'Drive API' : 'GAS fallback')
   if (driveAuth) {
     const drive = google.drive({ version: 'v3', auth: driveAuth })
     const meta = await drive.files.get({ fileId, fields: 'mimeType' })

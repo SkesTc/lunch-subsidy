@@ -231,6 +231,7 @@ function PdfViewer({ fileId, rotation }: { fileId: string; rotation: number }) {
   const [totalPages, setTotalPages] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [zoom, setZoom] = useState(1.0)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pdfDocRef = useRef<any>(null)
 
@@ -295,11 +296,10 @@ function PdfViewer({ fileId, rotation }: { fileId: string; rotation: number }) {
       const containerW = container.clientWidth || 800
       const containerH = container.clientHeight || 600
 
-      // 先用 scale=1 取得原始尺寸
+      // 先用 scale=1 取得原始尺寸，再乘上 zoom
       const baseViewport = pdfPage.getViewport({ scale: 1, rotation })
-      const scale = isLandscape
-        ? Math.min(containerW / baseViewport.width, containerH / baseViewport.height)
-        : Math.min(containerW / baseViewport.width, containerH / baseViewport.height)
+      const fitScale = Math.min(containerW / baseViewport.width, containerH / baseViewport.height)
+      const scale = fitScale * zoom
       const viewport = pdfPage.getViewport({ scale, rotation })
 
       const dpr = window.devicePixelRatio || 1
@@ -314,26 +314,36 @@ function PdfViewer({ fileId, rotation }: { fileId: string; rotation: number }) {
     }
     render()
     return () => { cancelled = true }
-  }, [pdfDocRef.current, page, rotation, loading]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pdfDocRef.current, page, rotation, zoom, loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div ref={containerRef} className="w-full h-full flex flex-col items-center bg-gray-800 overflow-auto">
-      {loading && <div className="text-white mt-8">載入中…</div>}
-      {error && <div className="text-red-400 mt-8">{error}</div>}
+    <div className="w-full h-full flex flex-col bg-gray-800">
+      {/* 工具列 */}
       {!loading && !error && (
-        <>
-          <canvas ref={canvasRef} className="mt-4 shadow-lg" />
+        <div className="flex items-center justify-center gap-3 py-2 shrink-0 text-white text-sm border-b border-gray-700">
+          <button onClick={() => setZoom(z => Math.max(0.25, +(z - 0.25).toFixed(2)))}
+            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">－</button>
+          <span className="w-14 text-center">{Math.round(zoom * 100)}%</span>
+          <button onClick={() => setZoom(z => Math.min(4, +(z + 0.25).toFixed(2)))}
+            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">＋</button>
+          <button onClick={() => setZoom(1)} className="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 text-xs">重設</button>
           {totalPages > 1 && (
-            <div className="flex items-center gap-3 mt-3 mb-4 text-white text-sm">
+            <>
+              <span className="mx-1 text-gray-500">|</span>
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
                 className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40">‹ 上頁</button>
               <span>{page} / {totalPages}</span>
               <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
                 className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40">下頁 ›</button>
-            </div>
+            </>
           )}
-        </>
+        </div>
       )}
+      <div ref={containerRef} className="flex-1 overflow-auto flex items-start justify-center">
+        {loading && <div className="text-white mt-8">載入中…</div>}
+        {error && <div className="text-red-400 mt-8">{error}</div>}
+        {!loading && !error && <canvas ref={canvasRef} className="mt-4 mb-4 shadow-lg" />}
+      </div>
     </div>
   )
 }
