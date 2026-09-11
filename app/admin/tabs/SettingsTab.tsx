@@ -18,7 +18,7 @@ interface Settings {
   [key: string]: string
 }
 
-export default function SettingsTab({ activeSchoolYear }: { activeSchoolYear: string }) {
+export default function SettingsTab({ activeSchoolYear, handleInitFolders, initingFolders }: { activeSchoolYear: string; handleInitFolders: () => void; initingFolders: boolean }) {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -149,6 +149,12 @@ export default function SettingsTab({ activeSchoolYear }: { activeSchoolYear: st
             <input value={settings.drive_folder_id} onChange={e => set('drive_folder_id', e.target.value)}
               className={inputCls} placeholder="貼上 Google Drive 資料夾 ID" />
             <p className="text-xs text-gray-400 mt-1">從資料夾網址取得：drive.google.com/drive/folders/<span className="font-mono text-gray-600">此處為ID</span></p>
+            {settings.drive_folder_id && (
+              <button type="button" onClick={handleInitFolders} disabled={initingFolders}
+                className="mt-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg cursor-pointer">
+                {initingFolders ? '建立中…' : '📁 初始化資料夾'}
+              </button>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">GAS 網址</label>

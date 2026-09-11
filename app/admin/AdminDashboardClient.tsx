@@ -145,7 +145,7 @@ export default function AdminDashboardClient({
       </div>
 
       {tab === 'overview' && (
-        <OverviewTab key={overviewKey} schools={schools} amounts={amounts} banks={banks} settlements={liveSettlements} profiles={profiles} contacts={contacts} activeSchoolYear={activeSchoolYear} plans={livePlans} planAmounts={livePlanAmounts} isSuperAdmin={isSuperAdmin} driveFolderId={driveRootFolderId} setDriveFolderId={setDriveRootFolderId} driveFolderUrl={driveRootFolderUrl} setDriveFolderUrl={setDriveRootFolderUrl} handleInitFolders={handleInitFolders} initingFolders={rootInitingFolders} />
+        <OverviewTab key={overviewKey} schools={schools} amounts={amounts} banks={banks} settlements={liveSettlements} profiles={profiles} contacts={contacts} activeSchoolYear={activeSchoolYear} plans={livePlans} planAmounts={livePlanAmounts} driveFolderId={driveRootFolderId} setDriveFolderId={setDriveRootFolderId} driveFolderUrl={driveRootFolderUrl} setDriveFolderUrl={setDriveRootFolderUrl} />
       )}
       {tab === 'review' && (
         <ReviewTab key={tabKeys.review} activeSchoolYear={activeSchoolYear} schools={schools} profiles={profiles} contacts={contacts} plans={livePlans}
@@ -167,7 +167,7 @@ export default function AdminDashboardClient({
         <SchoolMgmtTab key={tabKeys.school_mgmt} activeSchoolYear={activeSchoolYear} />
       )}
       {tab === 'settings' && (
-        <SettingsTab key={tabKeys.settings} activeSchoolYear={activeSchoolYear} />
+        <SettingsTab key={tabKeys.settings} activeSchoolYear={activeSchoolYear} handleInitFolders={handleInitFolders} initingFolders={rootInitingFolders} />
       )}
       {tab === 'zones' && isZoneAdmin && (
         <ZonesTab isSuperAdmin={isSuperAdmin} />
@@ -442,10 +442,10 @@ function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt
 // ── 總覽頁籤 ───────────────────────────────────────────────
 type StatusFilter = 'all' | 'done' | 'undone'
 
-function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSettlements, profiles, contacts, activeSchoolYear, plans, planAmounts, isSuperAdmin, driveFolderId, setDriveFolderId, driveFolderUrl, setDriveFolderUrl, handleInitFolders, initingFolders }: {
+function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSettlements, profiles, contacts, activeSchoolYear, plans, planAmounts, driveFolderId, setDriveFolderId, driveFolderUrl, setDriveFolderUrl }: {
   schools: School[]; amounts: AmountRow[]; banks: BankRow[]; settlements: SettleRow[]; profiles: ProfileRow[]; contacts: Record<string, ContactInfo>; activeSchoolYear: string
   plans: Plan[]; planAmounts: PlanAmount[]
-  isSuperAdmin: boolean; driveFolderId: string; setDriveFolderId: (v: string) => void; driveFolderUrl: string; setDriveFolderUrl: (v: string) => void; handleInitFolders: () => void; initingFolders: boolean
+  driveFolderId: string; setDriveFolderId: (v: string) => void; driveFolderUrl: string; setDriveFolderUrl: (v: string) => void
 }) {
   // 計畫頁籤：有計畫時用計畫切換，否則保持學期切換
   const hasPlans = plans.length > 0
@@ -1004,13 +1004,6 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
             ☁️ 雲端資料夾
           </span>
         )}
-        {isSuperAdmin && driveFolderId && (
-          <button onClick={handleInitFolders} disabled={initingFolders}
-            className="bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
-            {initingFolders ? '建立中…' : '📁 初始化資料夾'}
-          </button>
-        )}
-
         {selected.size > 0 && (
           <button onClick={() => setNotifyOpen(true)}
             className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
