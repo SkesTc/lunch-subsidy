@@ -48,6 +48,7 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [msgOk, setMsgOk] = useState(true)
+  const [clearingLegacy, setClearingLegacy] = useState(false)
   const [mainTab, setMainTab] = useState<'zones' | 'admins' | 'overview'>('zones')
 
   // 新增區別
@@ -209,6 +210,22 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     }
   }
 
+  // 一次性維護工具：清除舊版全域設定檔（settings.json）殘留的 block1_deadline，
+  // 避免分區欄位留空時，誤 fallback 到這筆過時資料而非程式預設文字
+  async function clearLegacyDeadline() {
+    if (!confirm('將清除全域設定檔中殘留的「帳戶確認截止說明」舊資料，確定執行？')) return
+    setClearingLegacy(true)
+    const res = await fetch('/api/admin/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ block1_deadline: '' }),
+    })
+    setClearingLegacy(false)
+    if (res.ok) { setMsgOk(true); setMsg('✅ 已清除舊版全域殘留值') }
+    else { setMsgOk(false); setMsg('❌ 清除失敗') }
+    setTimeout(() => setMsg(''), 4000)
+  }
+
   async function loadOverview() {
     setOverviewLoading(true)
     const res = await fetch('/api/admin/zone-overview')
@@ -334,6 +351,15 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                         )
                       })}
                     </div>
+                    {section === 'account' && isSuperAdmin && (
+                      <p className="text-xs text-gray-400 mt-2">
+                        欄位留空卻仍顯示舊文字？
+                        <button type="button" onClick={clearLegacyDeadline} disabled={clearingLegacy}
+                          className="text-blue-600 hover:underline cursor-pointer disabled:opacity-50 ml-1">
+                          {clearingLegacy ? '清除中...' : '清除全域殘留設定'}
+                        </button>
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>
