@@ -1413,7 +1413,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
                         </a>
                       )}
                       {req.pending_file_path && !req.pending_file_path.includes('/') && (
-                        <button onClick={() => setViewer({ fileId: req.pending_file_path!, fileExt: req.pending_file_ext })}
+                        <button onClick={() => window.open(`https://drive.google.com/file/d/${req.pending_file_path}/view`, '_blank')}
                           className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg cursor-pointer">
                           📄 待審檔案
                         </button>
