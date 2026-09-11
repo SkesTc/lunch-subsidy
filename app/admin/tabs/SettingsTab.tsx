@@ -8,6 +8,7 @@ const BackupTab = dynamic(() => import('./BackupTab'), { loading: () => <BlockSp
 interface Settings {
   system_name: string; host_school: string; school_year: string
   admin_name: string; admin_title: string; admin_phone: string; bcc_email: string; bcc_enabled: string
+  designer_name: string; designer_title: string
   plan_name: string; manual_url: string; admin_manual_url: string; drive_folder_id: string
   gas_url: string; gas_secret: string; notify_subject: string; notify_body: string
   review_approve_subject: string; review_approve_body: string
@@ -104,12 +105,13 @@ export default function SettingsTab({ activeSchoolYear, handleInitFolders, initi
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">系統設計姓名</label>
-            <input value={settings.admin_name} onChange={e => set('admin_name', e.target.value)}
+            <input value={settings.designer_name} onChange={e => set('designer_name', e.target.value)}
               className={inputCls} placeholder="林孟甫主任" />
+            <p className="text-xs text-gray-400 mt-1">顯示於前台頁面底部，與各分區「承辦人」資訊分開顯示</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">系統設計職稱</label>
-            <input value={settings.admin_title} onChange={e => set('admin_title', e.target.value)}
+            <input value={settings.designer_title} onChange={e => set('designer_title', e.target.value)}
               className={inputCls} placeholder="主任" />
           </div>
           <div>

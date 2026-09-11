@@ -16,6 +16,8 @@ export interface AllSettings {
   admin_name: string
   admin_title: string
   admin_phone: string
+  designer_name: string
+  designer_title: string
   bcc_email: string
   bcc_enabled: string
   plan_name: string
@@ -47,6 +49,8 @@ const DEFAULTS: AllSettings = {
   admin_name: '',
   admin_title: '',
   admin_phone: '',
+  designer_name: '',
+  designer_title: '',
   bcc_email: '',
   bcc_enabled: 'true',
   plan_name: '',

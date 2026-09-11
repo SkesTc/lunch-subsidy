@@ -422,6 +422,11 @@ export default async function SchoolDashboard() {
                   📞 {sysSettings.admin_phone}
                 </a>
               )}
+              {(sysSettings.designer_name || sysSettings.designer_title) && (
+                <p className="text-gray-400 text-xs pt-2 mt-2 border-t border-gray-100">
+                  系統設計：{sysSettings.designer_name}{sysSettings.designer_title ? `（${sysSettings.designer_title}）` : ''}
+                </p>
+              )}
             </div>
           </div>
         )}

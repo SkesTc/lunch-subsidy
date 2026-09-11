@@ -14,6 +14,8 @@ const DEFAULTS = {
   admin_name: '',
   admin_title: '',
   admin_phone: '',
+  designer_name: '',
+  designer_title: '',
   plan_name: '學年度第　學期公立國中小免費營養午餐計畫經費',
   manual_url: '',
   drive_folder_id: '',
