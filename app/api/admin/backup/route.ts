@@ -127,7 +127,7 @@ export async function POST(req: Request) {
     if ((isTrigger || testNotify) && settings.backup_notify_email && gasUrl) {
       const notifyEmail = String(settings.backup_notify_email)
       const sizeMB = (json.length / 1024 / 1024).toFixed(2)
-      const subjectPrefix = testNotify ? '【核銷系統】🔔 測試：定時備份完成通知' : '【核銷系統】定時備份完成通知'
+      const subjectPrefix = testNotify ? '【核銷系統】[測試] 定時備份完成通知' : '【核銷系統】定時備份完成通知'
       const bodyPrefix = testNotify ? '（此為管理員手動觸發的測試信，非實際定時備份）\n\n' : ''
       await fetch(gasUrl, {
         method: 'POST',
@@ -155,7 +155,7 @@ export async function POST(req: Request) {
           action: 'notify',
           secret: gs,
           to: String(settings2.backup_notify_email),
-          subject: `【核銷系統】⚠️ 定時備份失敗通知`,
+          subject: `【核銷系統】定時備份失敗通知`,
           body: `備份失敗時間：${new Date().toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' })}\n原因：${e instanceof Error ? e.message : String(e)}\n\n請登入後台手動執行備份。`,
         }),
       }).catch(() => {})
