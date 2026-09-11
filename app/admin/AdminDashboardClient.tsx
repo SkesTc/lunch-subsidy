@@ -251,28 +251,36 @@ function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt
             alt="檔案預覽"
             onError={() => setImgError(true)}
             style={{
-              maxWidth: isLandscape ? '90vh' : '100%',
-              maxHeight: isLandscape ? '100vw' : '100%',
+              maxWidth: isLandscape ? 'calc(100vh - 48px)' : '100%',
+              maxHeight: isLandscape ? '100vw' : 'calc(100vh - 48px)',
               objectFit: 'contain',
               transform: `rotate(${rotation}deg)`,
               transition: 'transform 0.25s ease',
+              transformOrigin: 'center center',
             }}
           />
         ) : (
           <div style={{
             position: 'absolute',
-            top: '50%',
-            left: '50%',
-            width: isLandscape ? '90vh' : '100%',
-            height: isLandscape ? '90vw' : '100%',
-            transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-            transition: 'transform 0.25s ease',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden',
           }}>
-            <iframe
-              src={`https://drive.google.com/file/d/${fileId}/preview`}
-              className="w-full h-full border-none"
-              allow="autoplay"
-            />
+            <div style={{
+              width: isLandscape ? 'calc(100vh - 48px)' : '100%',
+              height: isLandscape ? '100vw' : '100%',
+              flexShrink: 0,
+              transform: `rotate(${rotation}deg)`,
+              transition: 'transform 0.25s ease',
+            }}>
+              <iframe
+                src={`https://drive.google.com/file/d/${fileId}/preview`}
+                className="w-full h-full border-none"
+                allow="autoplay"
+              />
+            </div>
           </div>
         )}
       </div>
