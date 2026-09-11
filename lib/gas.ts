@@ -65,6 +65,21 @@ export async function gasRenameFile(opts: {
   if (!res.ok || !data.ok) throw new Error(data.error || 'GAS 改名失敗')
 }
 
+export async function gasGetFile(opts: {
+  gasUrl: string
+  gasSecret: string
+  fileId: string
+}): Promise<{ base64: string; mimeType: string }> {
+  const res = await fetch(opts.gasUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'getFile', secret: opts.gasSecret, fileId: opts.fileId }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.ok) throw new Error(data.error || 'GAS 讀檔失敗')
+  return { base64: data.base64 as string, mimeType: data.mimeType as string }
+}
+
 export async function gasDeleteFile(opts: {
   gasUrl: string
   gasSecret: string

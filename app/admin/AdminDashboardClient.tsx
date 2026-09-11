@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { formatAmount } from '@/lib/utils'
 import { Spinner, BlockSpinner } from '@/components/Spinner'
@@ -216,6 +216,128 @@ export default function AdminDashboardClient({
 // ── 檔案預覽 Modal ───────────────────────────────────────────
 const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'])
 
+// PDF.js 型別宣告（從 CDN 載入，不安裝套件）
+declare global {
+  interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    pdfjsLib: any
+  }
+}
+
+function PdfViewer({ fileId, rotation }: { fileId: string; rotation: number }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pdfDocRef = useRef<any>(null)
+
+  // 載入 PDF.js CDN
+  useEffect(() => {
+    if (window.pdfjsLib) return
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs'
+    script.type = 'module'
+    script.onload = () => {
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs'
+      }
+    }
+    document.head.appendChild(script)
+  }, [])
+
+  // 載入 PDF 文件
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setError('')
+      // 等 pdfjsLib 就緒
+      let tries = 0
+      while (!window.pdfjsLib && tries < 50) {
+        await new Promise(r => setTimeout(r, 100))
+        tries++
+      }
+      if (!window.pdfjsLib) { setError('PDF.js 載入逾時'); setLoading(false); return }
+      try {
+        const url = `/api/admin/file-proxy?fileId=${encodeURIComponent(fileId)}`
+        const pdf = await window.pdfjsLib.getDocument(url).promise
+        if (cancelled) return
+        pdfDocRef.current = pdf
+        setTotalPages(pdf.numPages)
+        setPage(1)
+      } catch (e) {
+        if (!cancelled) setError('PDF 載入失敗：' + String(e))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [fileId])
+
+  // 渲染目前頁面 + 旋轉
+  useEffect(() => {
+    if (!pdfDocRef.current || loading) return
+    let cancelled = false
+    async function render() {
+      const pdf = pdfDocRef.current
+      const pdfPage = await pdf.getPage(page)
+      if (cancelled) return
+      const canvas = canvasRef.current
+      const container = containerRef.current
+      if (!canvas || !container) return
+
+      const isLandscape = rotation % 180 !== 0
+      const containerW = container.clientWidth || 800
+      const containerH = container.clientHeight || 600
+
+      // 先用 scale=1 取得原始尺寸
+      const baseViewport = pdfPage.getViewport({ scale: 1, rotation })
+      const scale = isLandscape
+        ? Math.min(containerW / baseViewport.width, containerH / baseViewport.height)
+        : Math.min(containerW / baseViewport.width, containerH / baseViewport.height)
+      const viewport = pdfPage.getViewport({ scale, rotation })
+
+      const dpr = window.devicePixelRatio || 1
+      canvas.width = viewport.width * dpr
+      canvas.height = viewport.height * dpr
+      canvas.style.width = viewport.width + 'px'
+      canvas.style.height = viewport.height + 'px'
+
+      const ctx = canvas.getContext('2d')!
+      ctx.scale(dpr, dpr)
+      await pdfPage.render({ canvasContext: ctx, viewport }).promise
+    }
+    render()
+    return () => { cancelled = true }
+  }, [pdfDocRef.current, page, rotation, loading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div ref={containerRef} className="w-full h-full flex flex-col items-center bg-gray-800 overflow-auto">
+      {loading && <div className="text-white mt-8">載入中…</div>}
+      {error && <div className="text-red-400 mt-8">{error}</div>}
+      {!loading && !error && (
+        <>
+          <canvas ref={canvasRef} className="mt-4 shadow-lg" />
+          {totalPages > 1 && (
+            <div className="flex items-center gap-3 mt-3 mb-4 text-white text-sm">
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+                className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40">‹ 上頁</button>
+              <span>{page} / {totalPages}</span>
+              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+                className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40">下頁 ›</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt: string | null; onClose: () => void }) {
   const [rotation, setRotation] = useState(0)
   const [imgError, setImgError] = useState(false)
@@ -243,8 +365,7 @@ function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt
           <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">✕ 關閉</button>
         </div>
       </div>
-      <div className="flex-1 relative bg-gray-800 overflow-hidden flex items-center justify-center"
-        onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="flex-1 overflow-hidden flex items-center justify-center bg-gray-800">
         {showAsImage ? (
           <img
             src={`https://lh3.googleusercontent.com/d/${fileId}`}
@@ -260,20 +381,7 @@ function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt
             }}
           />
         ) : (
-          <div style={{
-            width: isLandscape ? 'calc(100vh - 48px)' : '100%',
-            height: isLandscape ? '100vw' : '100%',
-            flexShrink: 0,
-            transform: rotation ? `rotate(${rotation}deg)` : undefined,
-            transformOrigin: 'center center',
-            transition: 'transform 0.25s ease',
-          }}>
-            <iframe
-              src={`https://drive.google.com/file/d/${fileId}/preview`}
-              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-              allow="autoplay"
-            />
-          </div>
+          <PdfViewer fileId={fileId} rotation={rotation} />
         )}
       </div>
     </div>
@@ -1413,7 +1521,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
                         </a>
                       )}
                       {req.pending_file_path && !req.pending_file_path.includes('/') && (
-                        <button onClick={() => window.open(`https://drive.google.com/file/d/${req.pending_file_path}/view`, '_blank')}
+                        <button onClick={() => setViewer({ fileId: req.pending_file_path!, fileExt: req.pending_file_ext })}
                           className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg cursor-pointer">
                           📄 待審檔案
                         </button>
