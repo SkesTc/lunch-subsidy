@@ -231,14 +231,15 @@ function FileViewerModal({ fileId, onClose }: { fileId: string; onClose: () => v
           <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">✕ 關閉</button>
         </div>
       </div>
-      <div className="flex-1 flex items-center justify-center bg-gray-800 overflow-hidden">
+      <div className="flex-1 relative bg-gray-800 overflow-hidden">
         <div style={{
-          transform: `rotate(${rotation}deg)`,
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          width: isLandscape ? '90vh' : '100%',
+          height: isLandscape ? '90vw' : '100%',
+          transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
           transition: 'transform 0.25s ease',
-          width: isLandscape ? '80vh' : '100%',
-          height: isLandscape ? '100vw' : '100%',
-          maxWidth: isLandscape ? '80vh' : undefined,
-          maxHeight: isLandscape ? '100vw' : undefined,
         }}>
           <iframe
             src={`https://drive.google.com/file/d/${fileId}/preview`}
