@@ -1237,8 +1237,14 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
                       className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-xs px-4 py-1.5 rounded-lg cursor-pointer">拒絕</button>
                   </div>
                 )}
-                {isDone && req.admin_note && (
-                  <p className="text-xs text-gray-400">備註：{req.admin_note}</p>
+                {isDone && (
+                  <div className="space-y-1">
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${req.status === 'approved' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                      {req.status === 'approved' ? '✓ 已核准' : '✗ 已拒絕'}
+                      {req.reviewed_at && <span className="font-normal opacity-70">{new Date(req.reviewed_at).toLocaleString('zh-TW')}</span>}
+                    </div>
+                    {req.admin_note && <p className="text-xs text-gray-400 px-1">備註：{req.admin_note}</p>}
+                  </div>
                 )}
               </div>
             )
@@ -1354,8 +1360,14 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
                 )}
 
                 {isDone ? (
-                  <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${req.status === 'approved' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                    {req.status === 'approved' ? '✓ 已核准' : '✗ 已拒絕'}
+                  <div className="space-y-1">
+                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${req.status === 'approved' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                      {req.status === 'approved' ? '✓ 已核准' : '✗ 已拒絕'}
+                      {req.reviewed_at && <span className="font-normal opacity-70">{new Date(req.reviewed_at).toLocaleString('zh-TW')}</span>}
+                    </div>
+                    {req.admin_note && (
+                      <p className="text-xs text-gray-400 px-1">備註：{req.admin_note}</p>
+                    )}
                   </div>
                 ) : (
                   <div className="flex gap-2 items-center">
