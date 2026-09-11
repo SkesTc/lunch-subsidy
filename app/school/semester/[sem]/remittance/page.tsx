@@ -112,13 +112,13 @@ export default function RemittancePage() {
         <div className="mb-6 flex items-center gap-2">
           <Link href="/school" className="text-blue-600 hover:underline text-sm">← 返回首頁</Link>
           <span className="text-gray-400">/</span>
-          <span className="text-sm text-gray-600">第2學期・上傳送款憑單</span>
+          <span className="text-sm text-gray-600">第{semester}學期・上傳送款憑單</span>
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 space-y-6">
           <div>
             <h1 className="text-xl font-bold text-gray-800">上傳賸餘款送款憑單</h1>
-            <p className="text-sm text-gray-500 mt-1">第2學期・賸餘款繳回公庫</p>
+            <p className="text-sm text-gray-500 mt-1">第{semester}學期・賸餘款繳回公庫</p>
           </div>
 
           {repayAmount > 0 && (
