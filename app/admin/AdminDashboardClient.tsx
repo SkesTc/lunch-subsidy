@@ -235,14 +235,10 @@ function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt
       <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white shrink-0">
         <span className="text-sm font-medium">檔案預覽</span>
         <div className="flex items-center gap-2">
-          {showAsImage && (
-            <>
-              <button onClick={() => setRotation(r => (r - 90 + 360) % 360)}
-                className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↺ 逆時針</button>
-              <button onClick={() => setRotation(r => (r + 90) % 360)}
-                className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↻ 順時針</button>
-            </>
-          )}
+          <button onClick={() => setRotation(r => (r - 90 + 360) % 360)}
+            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↺ 逆時針</button>
+          <button onClick={() => setRotation(r => (r + 90) % 360)}
+            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↻ 順時針</button>
           <a href={`https://drive.google.com/file/d/${fileId}/view`} target="_blank" rel="noopener noreferrer"
             className="px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-sm">🔗 開啟原始連結</a>
           <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">✕ 關閉</button>
@@ -264,11 +260,21 @@ function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt
             }}
           />
         ) : (
-          <iframe
-            src={`https://drive.google.com/file/d/${fileId}/preview`}
-            className="w-full h-full border-none"
-            allow="autoplay"
-          />
+          /* PDF: 旋轉時交換寬高使內容置中填滿 */
+          <div style={{
+            width: isLandscape ? 'calc(100vh - 48px)' : '100%',
+            height: isLandscape ? '100vw' : '100%',
+            flexShrink: 0,
+            transform: rotation ? `rotate(${rotation}deg)` : undefined,
+            transformOrigin: 'center center',
+            transition: 'transform 0.25s ease',
+          }}>
+            <iframe
+              src={`https://drive.google.com/file/d/${fileId}/preview`}
+              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+              allow="autoplay"
+            />
+          </div>
         )}
       </div>
     </div>
