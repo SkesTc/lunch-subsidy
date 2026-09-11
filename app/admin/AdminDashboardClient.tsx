@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
 import { formatAmount } from '@/lib/utils'
 import { Spinner, BlockSpinner } from '@/components/Spinner'
@@ -318,23 +318,46 @@ function PdfViewer({ fileId, rotation }: { fileId: string; rotation: number }) {
 
   return (
     <div className="w-full h-full flex flex-col bg-gray-800">
-      {/* 工具列 */}
+      {/* PDF 內部工具列 */}
       {!loading && !error && (
-        <div className="flex items-center justify-center gap-3 py-2 shrink-0 text-white text-sm border-b border-gray-700">
-          <button onClick={() => setZoom(z => Math.max(0.25, +(z - 0.25).toFixed(2)))}
-            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">－</button>
-          <span className="w-14 text-center">{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom(z => Math.min(4, +(z + 0.25).toFixed(2)))}
-            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">＋</button>
-          <button onClick={() => setZoom(1)} className="px-3 py-1 rounded bg-gray-600 hover:bg-gray-500 text-xs">重設</button>
+        <div className="flex items-center justify-center gap-1.5 px-4 py-2 shrink-0 text-white text-sm"
+          style={{ background: 'rgba(30,30,40,0.95)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          {/* 縮放 */}
+          <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
+            <ToolbarBtn onClick={() => setZoom(z => Math.max(0.25, +(z - 0.25).toFixed(2)))} title="縮小">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+            </ToolbarBtn>
+            <span className="w-12 text-center text-white/80 text-xs tabular-nums">{Math.round(zoom * 100)}%</span>
+            <ToolbarBtn onClick={() => setZoom(z => Math.min(4, +(z + 0.25).toFixed(2)))} title="放大">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                <line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+              </svg>
+            </ToolbarBtn>
+            <ToolbarBtn onClick={() => setZoom(1)} title="重設縮放">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3.05 11a9 9 0 1 1 .5 4M3 21v-5h5"/>
+              </svg>
+            </ToolbarBtn>
+          </div>
           {totalPages > 1 && (
             <>
-              <span className="mx-1 text-gray-500">|</span>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-                className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40">‹ 上頁</button>
-              <span>{page} / {totalPages}</span>
-              <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-                className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-40">下頁 ›</button>
+              <div className="w-px h-5 bg-white/15 mx-1" />
+              <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
+                <ToolbarBtn onClick={() => setPage(p => Math.max(1, p - 1))} title="上一頁">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="15 18 9 12 15 6"/>
+                  </svg>
+                </ToolbarBtn>
+                <span className="px-2 text-white/80 text-xs tabular-nums">{page} / {totalPages}</span>
+                <ToolbarBtn onClick={() => setPage(p => Math.min(totalPages, p + 1))} title="下一頁">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <polyline points="9 18 15 12 9 6"/>
+                  </svg>
+                </ToolbarBtn>
+              </div>
             </>
           )}
         </div>
@@ -346,6 +369,19 @@ function PdfViewer({ fileId, rotation }: { fileId: string; rotation: number }) {
       </div>
     </div>
   )
+}
+
+function ToolbarBtn({ onClick, title, children, variant = 'default' }: {
+  onClick?: () => void; title?: string; children: React.ReactNode
+  variant?: 'default' | 'blue' | 'red'
+}) {
+  const base = 'inline-flex items-center justify-center gap-1 rounded-lg text-sm font-medium transition-colors px-3 py-1.5 select-none'
+  const colors = {
+    default: 'bg-white/10 hover:bg-white/20 text-white',
+    blue: 'bg-blue-500/80 hover:bg-blue-500 text-white',
+    red: 'bg-red-500/80 hover:bg-red-500 text-white',
+  }
+  return <button onClick={onClick} title={title} className={`${base} ${colors[variant]}`}>{children}</button>
 }
 
 function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt: string | null; onClose: () => void }) {
@@ -362,32 +398,64 @@ function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt
   }, [onClose])
 
   return (
-    <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col">
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white shrink-0">
-        <span className="text-sm font-medium">檔案預覽</span>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setRotation(r => (r - 90 + 360) % 360)}
-            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↺ 逆時針</button>
-          <button onClick={() => setRotation(r => (r + 90) % 360)}
-            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↻ 順時針</button>
-          <a href={`https://drive.google.com/file/d/${fileId}/view`} target="_blank" rel="noopener noreferrer"
-            className="px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-sm">🔗 另開連結</a>
-          <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">✕ 關閉</button>
+    <div className="fixed inset-0 z-[100] flex flex-col" style={{ background: 'rgba(15,15,20,0.92)', backdropFilter: 'blur(4px)' }}>
+      {/* 頂部工具列 */}
+      <div className="flex items-center justify-between px-4 py-2.5 shrink-0"
+        style={{ background: 'rgba(30,30,40,0.95)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+        <span className="text-white/70 text-sm font-medium tracking-wide">📄 檔案預覽</span>
+        <div className="flex items-center gap-1.5">
+          {/* 旋轉 */}
+          <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
+            <ToolbarBtn onClick={() => setRotation(r => (r - 90 + 360) % 360)} title="逆時針旋轉">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+              逆時針
+            </ToolbarBtn>
+            <ToolbarBtn onClick={() => setRotation(r => (r + 90) % 360)} title="順時針旋轉">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+                <path d="M21 3v5h-5"/>
+              </svg>
+              順時針
+            </ToolbarBtn>
+          </div>
+          <div className="w-px h-5 bg-white/15 mx-1" />
+          {/* 另開連結 */}
+          <ToolbarBtn variant="blue" title="在 Google Drive 開啟"
+            onClick={() => window.open(`https://drive.google.com/file/d/${fileId}/view`, '_blank')}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            另開
+          </ToolbarBtn>
+          {/* 關閉 */}
+          <ToolbarBtn variant="red" onClick={onClose} title="關閉（Esc）">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+            關閉
+          </ToolbarBtn>
         </div>
       </div>
-      <div className="flex-1 overflow-hidden flex items-center justify-center bg-gray-800">
+      {/* 內容區 */}
+      <div className="flex-1 overflow-hidden flex items-center justify-center" style={{ background: '#1a1a24' }}>
         {showAsImage ? (
           <img
             src={`https://lh3.googleusercontent.com/d/${fileId}`}
             alt="檔案預覽"
             onError={() => setImgError(true)}
             style={{
-              maxWidth: isLandscape ? 'calc(100vh - 48px)' : '100%',
-              maxHeight: isLandscape ? '100vw' : 'calc(100vh - 48px)',
+              maxWidth: isLandscape ? 'calc(100vh - 52px)' : '100%',
+              maxHeight: isLandscape ? '100vw' : 'calc(100vh - 52px)',
               objectFit: 'contain',
               transform: `rotate(${rotation}deg)`,
-              transition: 'transform 0.25s ease',
+              transition: 'transform 0.3s ease',
               transformOrigin: 'center center',
+              borderRadius: 4,
             }}
           />
         ) : (
