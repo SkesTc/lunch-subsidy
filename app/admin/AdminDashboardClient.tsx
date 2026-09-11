@@ -214,6 +214,71 @@ export default function AdminDashboardClient({
 }
 
 // ── 檔案預覽 Modal ───────────────────────────────────────────
+const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'])
+
+function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt: string | null; onClose: () => void }) {
+  const [rotation, setRotation] = useState(0)
+  const [imgError, setImgError] = useState(false)
+  const isImage = fileExt ? IMAGE_EXTS.has(fileExt.toLowerCase()) : false
+  const showAsImage = isImage && !imgError
+  const isLandscape = rotation % 180 !== 0
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
+  return (
+    <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col">
+      <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white shrink-0">
+        <span className="text-sm font-medium">檔案預覽</span>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setRotation(r => (r - 90 + 360) % 360)}
+            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↺ 逆時針</button>
+          <button onClick={() => setRotation(r => (r + 90) % 360)}
+            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↻ 順時針</button>
+          <a href={`https://drive.google.com/file/d/${fileId}/view`} target="_blank" rel="noopener noreferrer"
+            className="px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-sm">🔗 另開連結</a>
+          <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">✕ 關閉</button>
+        </div>
+      </div>
+      <div className="flex-1 relative bg-gray-800 overflow-hidden flex items-center justify-center"
+        onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+        {showAsImage ? (
+          <img
+            src={`https://lh3.googleusercontent.com/d/${fileId}`}
+            alt="檔案預覽"
+            onError={() => setImgError(true)}
+            style={{
+              maxWidth: isLandscape ? 'calc(100vh - 48px)' : '100%',
+              maxHeight: isLandscape ? '100vw' : 'calc(100vh - 48px)',
+              objectFit: 'contain',
+              transform: `rotate(${rotation}deg)`,
+              transition: 'transform 0.25s ease',
+              transformOrigin: 'center center',
+            }}
+          />
+        ) : (
+          <div style={{
+            width: isLandscape ? 'calc(100vh - 48px)' : '100%',
+            height: isLandscape ? '100vw' : '100%',
+            flexShrink: 0,
+            transform: rotation ? `rotate(${rotation}deg)` : undefined,
+            transformOrigin: 'center center',
+            transition: 'transform 0.25s ease',
+          }}>
+            <iframe
+              src={`https://drive.google.com/file/d/${fileId}/preview`}
+              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+              allow="autoplay"
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 // ── 總覽頁籤 ───────────────────────────────────────────────
 type StatusFilter = 'all' | 'done' | 'undone'
@@ -1059,6 +1124,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
   const [subTab, setSubTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
   const [planFilter, setPlanFilter] = useState<string | null>(null) // null = 全部計畫
   const [typeFilter, setTypeFilter] = useState<string>('all') // 申請類型篩選
+  const [viewer, setViewer] = useState<{ fileId: string; fileExt: string | null } | null>(null)
 
   function load() {
     setLoading(true)
@@ -1347,7 +1413,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
                         </a>
                       )}
                       {req.pending_file_path && !req.pending_file_path.includes('/') && (
-                        <button onClick={() => window.open(`https://drive.google.com/file/d/${req.pending_file_path}/view`, '_blank')}
+                        <button onClick={() => setViewer({ fileId: req.pending_file_path!, fileExt: req.pending_file_ext })}
                           className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg cursor-pointer">
                           📄 待審檔案
                         </button>
@@ -1396,6 +1462,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
           <p className="font-medium">{subTab === 'pending' ? '目前沒有待審核的申請' : subTab === 'approved' ? '尚無已通過的申請' : '尚無已拒絕的申請'}</p>
         </div>
       )}
+      {viewer && <FileViewerModal fileId={viewer.fileId} fileExt={viewer.fileExt} onClose={() => setViewer(null)} />}
     </div>
   )
 }
