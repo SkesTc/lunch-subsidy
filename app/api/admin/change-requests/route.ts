@@ -407,6 +407,6 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
   await fetch(gasUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'notify', secret: gasSecret, to: profile.email, subject: applyVars(String(tmplSubject)), body: plainBody, htmlBody, noReply: true, ...(allSettings.bcc_email ? { bcc: allSettings.bcc_email } : {}) }),
+    body: JSON.stringify({ action: 'notify', secret: gasSecret, to: profile.email, subject: applyVars(String(tmplSubject)), body: plainBody, htmlBody, noReply: true, ...(allSettings.bcc_enabled !== 'false' && allSettings.bcc_email ? { bcc: allSettings.bcc_email } : {}) }),
   })
 }

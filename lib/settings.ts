@@ -17,6 +17,7 @@ export interface AllSettings {
   admin_title: string
   admin_phone: string
   bcc_email: string
+  bcc_enabled: string
   plan_name: string
   manual_url: string
   drive_folder_id: string
@@ -47,6 +48,7 @@ const DEFAULTS: AllSettings = {
   admin_title: '',
   admin_phone: '',
   bcc_email: '',
+  bcc_enabled: 'true',
   plan_name: '',
   manual_url: '',
   drive_folder_id: '',

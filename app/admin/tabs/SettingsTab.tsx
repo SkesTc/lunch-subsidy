@@ -7,7 +7,7 @@ const BackupTab = dynamic(() => import('./BackupTab'), { loading: () => <BlockSp
 
 interface Settings {
   system_name: string; host_school: string; school_year: string
-  admin_name: string; admin_title: string; admin_phone: string; bcc_email: string
+  admin_name: string; admin_title: string; admin_phone: string; bcc_email: string; bcc_enabled: string
   plan_name: string; manual_url: string; admin_manual_url: string; drive_folder_id: string
   gas_url: string; gas_secret: string; notify_subject: string; notify_body: string
   review_approve_subject: string; review_approve_body: string
@@ -124,10 +124,19 @@ export default function SettingsTab({ activeSchoolYear }: { activeSchoolYear: st
               className={inputCls} placeholder="(04)2562-6834 #730" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">系統管理 Email（通知密送）</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-sm font-medium text-gray-700">系統管理 Email（通知密送）</label>
+              <button type="button" onClick={() => set('bcc_enabled', settings.bcc_enabled === 'false' ? 'true' : 'false')}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors cursor-pointer ${settings.bcc_enabled !== 'false' ? 'bg-blue-600' : 'bg-gray-300'}`}>
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${settings.bcc_enabled !== 'false' ? 'translate-x-[18px]' : 'translate-x-1'}`} />
+              </button>
+            </div>
             <input value={settings.bcc_email || ''} onChange={e => set('bcc_email', e.target.value)}
-              className={inputCls} placeholder="admin@tc.edu.tw" type="email" />
-            <p className="text-xs text-gray-400 mt-1">填入後，所有寄出的通知信件將密送一份至此信箱</p>
+              disabled={settings.bcc_enabled === 'false'}
+              className={`${inputCls} disabled:bg-gray-100 disabled:text-gray-400`} placeholder="admin@tc.edu.tw" type="email" />
+            <p className="text-xs text-gray-400 mt-1">
+              {settings.bcc_enabled === 'false' ? '目前已關閉，通知信件不會密送' : '開啟時，所有寄出的通知信件將密送一份至此信箱'}
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">學校端使用說明連結</label>
