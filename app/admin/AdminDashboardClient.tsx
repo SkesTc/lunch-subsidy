@@ -1037,13 +1037,14 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
   plans: Plan[]
   onReviewDone: () => void
 }) {
-  interface ChangeRequest { school_id: number; school_name: string; school_code: number; school_year: string; status: string; new_info: Record<string, string>; file_id: string; submitted_at: string; admin_note: string }
+  interface ChangeRequest { school_id: number; school_name: string; school_code: number; school_year: string; status: string; new_info: Record<string, string>; file_id: string; submitted_at: string; admin_note: string; reviewed_at: string | null }
   interface SettleReq {
     id: string; school_id: number; semester: number; plan_id: string | null; plan_label: string | null
     request_type: string; new_amount: number | null; reason: string; status: string; created_at: string
     pending_file_path: string | null; existing_file_path: string | null
     existing_amount: number | null; approved_amount: number | null
     actual_expense: number | null; surplus: number | null
+    admin_note: string | null; reviewed_at: string | null
     schools: { name: string; code: number; district: string }
   }
 
