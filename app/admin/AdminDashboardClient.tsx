@@ -213,6 +213,44 @@ export default function AdminDashboardClient({
   )
 }
 
+// ── 檔案預覽 Modal ───────────────────────────────────────────
+function FileViewerModal({ fileId, onClose }: { fileId: string; onClose: () => void }) {
+  const [rotation, setRotation] = useState(0)
+  const isLandscape = rotation % 180 !== 0
+  return (
+    <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white shrink-0">
+        <span className="text-sm font-medium">檔案預覽</span>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setRotation(r => (r - 90 + 360) % 360)}
+            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↺ 逆時針</button>
+          <button onClick={() => setRotation(r => (r + 90) % 360)}
+            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↻ 順時針</button>
+          <a href={`https://drive.google.com/file/d/${fileId}/view`} target="_blank" rel="noopener noreferrer"
+            className="px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-sm">🔗 開啟原始連結</a>
+          <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">✕ 關閉</button>
+        </div>
+      </div>
+      <div className="flex-1 flex items-center justify-center bg-gray-800 overflow-hidden">
+        <div style={{
+          transform: `rotate(${rotation}deg)`,
+          transition: 'transform 0.25s ease',
+          width: isLandscape ? '80vh' : '100%',
+          height: isLandscape ? '100vw' : '100%',
+          maxWidth: isLandscape ? '80vh' : undefined,
+          maxHeight: isLandscape ? '100vw' : undefined,
+        }}>
+          <iframe
+            src={`https://drive.google.com/file/d/${fileId}/preview`}
+            className="w-full h-full border-none"
+            allow="autoplay"
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── 總覽頁籤 ───────────────────────────────────────────────
 type StatusFilter = 'all' | 'done' | 'undone'
 
@@ -594,43 +632,6 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
     if (!path) return '#'
     if (!path.includes('/')) return `https://drive.google.com/file/d/${path}/view`
     return `/api/admin/file?path=${encodeURIComponent(path)}`
-  }
-
-  function FileViewerModal({ fileId, onClose }: { fileId: string; onClose: () => void }) {
-    const [rotation, setRotation] = useState(0)
-    const isLandscape = rotation % 180 !== 0
-    return (
-      <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-        <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white shrink-0">
-          <span className="text-sm font-medium">檔案預覽</span>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setRotation(r => (r - 90 + 360) % 360)}
-              className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↺ 逆時針</button>
-            <button onClick={() => setRotation(r => (r + 90) % 360)}
-              className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↻ 順時針</button>
-            <a href={`https://drive.google.com/file/d/${fileId}/view`} target="_blank" rel="noopener noreferrer"
-              className="px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-sm">🔗 開啟原始連結</a>
-            <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">✕ 關閉</button>
-          </div>
-        </div>
-        <div className="flex-1 flex items-center justify-center bg-gray-800 overflow-hidden">
-          <div style={{
-            transform: `rotate(${rotation}deg)`,
-            transition: 'transform 0.25s ease',
-            width: isLandscape ? '80vh' : '100%',
-            height: isLandscape ? '100vw' : '100%',
-            maxWidth: isLandscape ? '80vh' : undefined,
-            maxHeight: isLandscape ? '100vw' : undefined,
-          }}>
-            <iframe
-              src={`https://drive.google.com/file/d/${fileId}/preview`}
-              className="w-full h-full border-none"
-              allow="autoplay"
-            />
-          </div>
-        </div>
-      </div>
-    )
   }
 
   function FilterSelect({ value, onChange }: { value: StatusFilter; onChange: (v: StatusFilter) => void }) {
