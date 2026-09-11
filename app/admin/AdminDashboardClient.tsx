@@ -596,6 +596,43 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
     return `/api/admin/file?path=${encodeURIComponent(path)}`
   }
 
+  function FileViewerModal({ fileId, onClose }: { fileId: string; onClose: () => void }) {
+    const [rotation, setRotation] = useState(0)
+    const isLandscape = rotation % 180 !== 0
+    return (
+      <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+        <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white shrink-0">
+          <span className="text-sm font-medium">檔案預覽</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setRotation(r => (r - 90 + 360) % 360)}
+              className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↺ 逆時針</button>
+            <button onClick={() => setRotation(r => (r + 90) % 360)}
+              className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↻ 順時針</button>
+            <a href={`https://drive.google.com/file/d/${fileId}/view`} target="_blank" rel="noopener noreferrer"
+              className="px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-sm">🔗 開啟原始連結</a>
+            <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">✕ 關閉</button>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center bg-gray-800 overflow-hidden">
+          <div style={{
+            transform: `rotate(${rotation}deg)`,
+            transition: 'transform 0.25s ease',
+            width: isLandscape ? '80vh' : '100%',
+            height: isLandscape ? '100vw' : '100%',
+            maxWidth: isLandscape ? '80vh' : undefined,
+            maxHeight: isLandscape ? '100vw' : undefined,
+          }}>
+            <iframe
+              src={`https://drive.google.com/file/d/${fileId}/preview`}
+              className="w-full h-full border-none"
+              allow="autoplay"
+            />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   function FilterSelect({ value, onChange }: { value: StatusFilter; onChange: (v: StatusFilter) => void }) {
     return (
       <select value={value} onChange={e => onChange(e.target.value as StatusFilter)}
@@ -1052,6 +1089,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
   const [settleReqs, setSettleReqs] = useState<SettleReq[]>([])
   const [reviewNote, setReviewNote] = useState<Record<string, string>>({})
   const [settleNote, setSettleNote] = useState<Record<string, string>>({})
+  const [viewerFileId, setViewerFileId] = useState<string | null>(null)
   const [reviewing, setReviewing] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [subTab, setSubTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
@@ -1143,6 +1181,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
 
   return (
     <div className="space-y-4">
+      {viewerFileId && <FileViewerModal fileId={viewerFileId} onClose={() => setViewerFileId(null)} />}
       {/* 子分頁 + 重新整理 */}
       <div className="flex items-center gap-2">
         <button className={subTabCls('pending')} onClick={() => setSubTab('pending')}>
@@ -1345,10 +1384,10 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
                         </a>
                       )}
                       {req.pending_file_path && (
-                        <a href={`https://drive.google.com/file/d/${req.pending_file_path}/view`} target="_blank" rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg">
+                        <button onClick={() => setViewerFileId(req.pending_file_path!.includes('/') ? null : req.pending_file_path)}
+                          className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg cursor-pointer">
                           📄 待審檔案
-                        </a>
+                        </button>
                       )}
                     </div>
                   </div>
