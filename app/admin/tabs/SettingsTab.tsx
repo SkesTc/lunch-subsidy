@@ -103,12 +103,6 @@ export default function SettingsTab({ activeSchoolYear }: { activeSchoolYear: st
             <p className="text-xs text-gray-400 mt-1">顯示於導覽列、登入頁及瀏覽器標題</p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">承辦學校</label>
-            <input value={settings.host_school} onChange={e => set('host_school', e.target.value)}
-              className={inputCls} placeholder="例：臺中市神岡區社口國民小學" />
-            <p className="text-xs text-gray-400 mt-1">顯示於登入頁；同時作為全區經費收支結算表抬頭</p>
-          </div>
-          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">系統設計姓名</label>
             <input value={settings.admin_name} onChange={e => set('admin_name', e.target.value)}
               className={inputCls} placeholder="林孟甫主任" />
