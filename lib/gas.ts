@@ -80,6 +80,24 @@ export async function gasGetFile(opts: {
   return { base64: data.base64 as string, mimeType: data.mimeType as string }
 }
 
+export async function gasMoveToTrash(opts: {
+  gasUrl: string
+  gasSecret: string
+  fileId: string
+}): Promise<void> {
+  const res = await fetch(opts.gasUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'moveToTrash',
+      secret: opts.gasSecret,
+      fileId: opts.fileId,
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok || !data.ok) throw new Error(data.error || 'GAS 移至回收桶失敗')
+}
+
 export async function gasDeleteFile(opts: {
   gasUrl: string
   gasSecret: string

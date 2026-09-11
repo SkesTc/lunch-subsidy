@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getActiveSchoolYear, getAllSettings, getSettingsForZone, getGlobalSystemName } from '@/lib/settings'
-import { getGasSettings, gasDeleteFile, gasRenameFile } from '@/lib/gas'
+import { getGasSettings, gasDeleteFile, gasMoveToTrash, gasRenameFile } from '@/lib/gas'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
 import { wrapEmailHtml } from '@/lib/email-html'
 import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
@@ -280,9 +280,9 @@ export async function PATCH(req: Request) {
     const isScanReject = cr.request_type === 'scan_reupload'
     const existingFileField = isScanReject ? 'scan_file_path' : 'remittance_file_path'
 
-    // 刪除待審的 pending 檔案
+    // 待審檔案被拒絕：搬移至該計畫資料夾下的「回收桶」子資料夾，而非直接刪除
     const deletePending = cr.pending_file_path && gasUrl && !cr.pending_file_path.includes('/')
-      ? gasDeleteFile({ gasUrl, gasSecret, fileId: cr.pending_file_path })
+      ? gasMoveToTrash({ gasUrl, gasSecret, fileId: cr.pending_file_path })
       : Promise.resolve()
 
     const [, , { data: profile }] = await Promise.all([
