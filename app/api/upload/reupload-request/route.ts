@@ -87,6 +87,7 @@ export async function POST(req: Request) {
     request_type: requestType,
     reason,
     pending_file_path: pendingPath,
+    pending_file_ext: ext || null,
   })
 
   if (insertError) return NextResponse.json({ error: `建立審核記錄失敗：${insertError.message}` }, { status: 500 })

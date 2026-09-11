@@ -214,39 +214,63 @@ export default function AdminDashboardClient({
 }
 
 // ── 檔案預覽 Modal ───────────────────────────────────────────
-function FileViewerModal({ fileId, onClose }: { fileId: string; onClose: () => void }) {
+const IMAGE_EXTS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'])
+
+function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt: string | null; onClose: () => void }) {
   const [rotation, setRotation] = useState(0)
+  const [imgError, setImgError] = useState(false)
+  const isImage = fileExt ? IMAGE_EXTS.has(fileExt.toLowerCase()) : false
+  const showAsImage = isImage && !imgError
   const isLandscape = rotation % 180 !== 0
+
+  // Escape 鍵關閉
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div className="fixed inset-0 bg-black/80 z-[100] flex flex-col">
       <div className="flex items-center justify-between px-4 py-2 bg-gray-900 text-white shrink-0">
         <span className="text-sm font-medium">檔案預覽</span>
         <div className="flex items-center gap-2">
-          <button onClick={() => setRotation(r => (r - 90 + 360) % 360)}
-            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↺ 逆時針</button>
-          <button onClick={() => setRotation(r => (r + 90) % 360)}
-            className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↻ 順時針</button>
+          {showAsImage && (
+            <>
+              <button onClick={() => setRotation(r => (r - 90 + 360) % 360)}
+                className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↺ 逆時針</button>
+              <button onClick={() => setRotation(r => (r + 90) % 360)}
+                className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">↻ 順時針</button>
+            </>
+          )}
           <a href={`https://drive.google.com/file/d/${fileId}/view`} target="_blank" rel="noopener noreferrer"
             className="px-3 py-1 rounded bg-blue-700 hover:bg-blue-600 text-sm">🔗 開啟原始連結</a>
           <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600 text-sm">✕ 關閉</button>
         </div>
       </div>
-      <div className="flex-1 relative bg-gray-800 overflow-hidden">
-        <div style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          width: isLandscape ? '90vh' : '100%',
-          height: isLandscape ? '90vw' : '100%',
-          transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-          transition: 'transform 0.25s ease',
-        }}>
-          <iframe
-            src={`https://drive.google.com/file/d/${fileId}/preview`}
-            className="w-full h-full border-none"
-            allow="autoplay"
+      <div className="flex-1 relative bg-gray-800 overflow-hidden flex items-center justify-center" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+        {showAsImage ? (
+          <img
+            src={`https://lh3.googleusercontent.com/d/${fileId}`}
+            alt="檔案預覽"
+            onError={() => setImgError(true)}
+            style={{
+              maxWidth: isLandscape ? '90vh' : '100%',
+              maxHeight: isLandscape ? '100vw' : '100%',
+              objectFit: 'contain',
+              transform: `rotate(${rotation}deg)`,
+              transition: 'transform 0.25s ease',
+            }}
           />
-        </div>
+        ) : (
+          <div style={{ position: 'absolute', inset: 0 }}>
+            <iframe
+              src={`https://drive.google.com/file/d/${fileId}/preview`}
+              className="w-full h-full border-none"
+              allow="autoplay"
+            />
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1080,7 +1104,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
   interface SettleReq {
     id: string; school_id: number; semester: number; plan_id: string | null; plan_label: string | null
     request_type: string; new_amount: number | null; reason: string; status: string; created_at: string
-    pending_file_path: string | null; existing_file_path: string | null
+    pending_file_path: string | null; pending_file_ext: string | null; existing_file_path: string | null
     existing_amount: number | null; approved_amount: number | null
     actual_expense: number | null; surplus: number | null
     admin_note: string | null; reviewed_at: string | null
@@ -1091,7 +1115,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
   const [settleReqs, setSettleReqs] = useState<SettleReq[]>([])
   const [reviewNote, setReviewNote] = useState<Record<string, string>>({})
   const [settleNote, setSettleNote] = useState<Record<string, string>>({})
-  const [viewerFileId, setViewerFileId] = useState<string | null>(null)
+  const [viewer, setViewer] = useState<{ fileId: string; fileExt: string | null } | null>(null)
   const [reviewing, setReviewing] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [subTab, setSubTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
@@ -1183,7 +1207,7 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
 
   return (
     <div className="space-y-4">
-      {viewerFileId && <FileViewerModal fileId={viewerFileId} onClose={() => setViewerFileId(null)} />}
+      {viewer && <FileViewerModal fileId={viewer.fileId} fileExt={viewer.fileExt} onClose={() => setViewer(null)} />}
       {/* 子分頁 + 重新整理 */}
       <div className="flex items-center gap-2">
         <button className={subTabCls('pending')} onClick={() => setSubTab('pending')}>
@@ -1385,8 +1409,8 @@ function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onRev
                           📄 現有檔案
                         </a>
                       )}
-                      {req.pending_file_path && (
-                        <button onClick={() => setViewerFileId(req.pending_file_path!.includes('/') ? null : req.pending_file_path)}
+                      {req.pending_file_path && !req.pending_file_path.includes('/') && (
+                        <button onClick={() => setViewer({ fileId: req.pending_file_path!, fileExt: req.pending_file_ext })}
                           className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg cursor-pointer">
                           📄 待審檔案
                         </button>

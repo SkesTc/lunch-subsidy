@@ -85,6 +85,7 @@ export async function POST(req: Request) {
     ...(planId ? { plan_id: planId } : {}),
     request_type: requestType,
     pending_file_path: storedPath,
+    pending_file_ext: ext || null,
     reason,
     status: 'pending',
   })
