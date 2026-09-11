@@ -7,7 +7,7 @@ const BackupTab = dynamic(() => import('./BackupTab'), { loading: () => <BlockSp
 
 interface Settings {
   system_name: string; host_school: string; school_year: string
-  admin_name: string; admin_title: string; admin_phone: string
+  admin_name: string; admin_title: string; admin_phone: string; bcc_email: string
   plan_name: string; manual_url: string; admin_manual_url: string; drive_folder_id: string
   gas_url: string; gas_secret: string; notify_subject: string; notify_body: string
   review_approve_subject: string; review_approve_body: string
@@ -122,6 +122,12 @@ export default function SettingsTab({ activeSchoolYear }: { activeSchoolYear: st
             <label className="block text-sm font-medium text-gray-700 mb-1">聯絡電話</label>
             <input value={settings.admin_phone} onChange={e => set('admin_phone', e.target.value)}
               className={inputCls} placeholder="(04)2562-6834 #730" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">系統管理 Email（通知密送）</label>
+            <input value={settings.bcc_email || ''} onChange={e => set('bcc_email', e.target.value)}
+              className={inputCls} placeholder="admin@tc.edu.tw" type="email" />
+            <p className="text-xs text-gray-400 mt-1">填入後，所有寄出的通知信件將密送一份至此信箱</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">學校端使用說明連結</label>

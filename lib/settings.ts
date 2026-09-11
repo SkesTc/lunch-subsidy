@@ -16,6 +16,7 @@ export interface AllSettings {
   admin_name: string
   admin_title: string
   admin_phone: string
+  bcc_email: string
   plan_name: string
   manual_url: string
   drive_folder_id: string
@@ -45,6 +46,7 @@ const DEFAULTS: AllSettings = {
   admin_name: '',
   admin_title: '',
   admin_phone: '',
+  bcc_email: '',
   plan_name: '',
   manual_url: '',
   drive_folder_id: '',

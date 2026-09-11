@@ -71,7 +71,7 @@ export async function POST(req: Request) {
       const res = await fetch(gasUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'notify', secret: gasSecret, to: profile.email, subject, body: bodyText, htmlBody, noReply: true }),
+        body: JSON.stringify({ action: 'notify', secret: gasSecret, to: profile.email, subject, body: bodyText, htmlBody, noReply: true, ...(settings.bcc_email ? { bcc: settings.bcc_email } : {}) }),
       })
       const data = await res.json().catch(() => ({}))
       return { email: profile.email, school: schoolName, ok: res.ok && data.ok, error: data.error }
