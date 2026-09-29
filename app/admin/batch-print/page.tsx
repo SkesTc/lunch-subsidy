@@ -134,7 +134,7 @@ export default function BatchPrintPage() {
       const d = await res.json().catch(() => ({}))
       if (!res.ok || !d.ok) throw new Error(d.error || `合併失敗（HTTP ${res.status}）`)
       setMergeLink({ url: d.url, filename: d.filename })
-      if (d.errors?.length > 0) setMergeError(`有 ${d.errors.length} 校檔案無法自動合併（PDF 內會附上說明頁）`)
+      if (d.errors?.length > 0) setMergeError(`有 ${d.errors.length} 校檔案無法自動合併（PDF 內會附上說明頁）。例：${d.errors.slice(0, 3).join('；')}`)
     } catch (e) {
       setMergeError(e instanceof Error ? e.message : '合併失敗')
     }

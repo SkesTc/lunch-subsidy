@@ -28,6 +28,17 @@ async function fetchAllWithConcurrency<T, R>(items: T[], limit: number, worker: 
   return results
 }
 
+// 以檔案開頭位元組判斷格式，不依賴 Drive 回傳的 Content-Type
+function sniffKind(buf: Buffer, mimeType: string): 'pdf' | 'jpg' | 'png' | null {
+  if (buf.length > 4 && buf.subarray(0, 4).toString('latin1') === '%PDF') return 'pdf'
+  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg'
+  if (buf.length > 8 && buf[0] === 0x89 && buf.subarray(1, 4).toString('latin1') === 'PNG') return 'png'
+  if (mimeType === 'application/pdf') return 'pdf'
+  if (mimeType === 'image/jpeg') return 'jpg'
+  if (mimeType === 'image/png') return 'png'
+  return null
+}
+
 // 將所有學校的已核准檔案（PDF 直接併頁，圖片轉成一頁）依編號順序合併成單一 PDF
 export async function GET(req: Request) {
   const session = await auth()
@@ -64,12 +75,13 @@ export async function GET(req: Request) {
   for (const { item, buffer, mimeType, error: fetchError } of fetched) {
     try {
       if (fetchError || !buffer || !mimeType) throw new Error(fetchError || '下載失敗')
-      if (mimeType === 'application/pdf') {
+      const kind = sniffKind(buffer, mimeType)
+      if (kind === 'pdf') {
         const src = await PDFDocument.load(buffer, { ignoreEncryption: true })
         const pages = await merged.copyPages(src, src.getPageIndices())
         pages.forEach(p => merged.addPage(p))
-      } else if (mimeType === 'image/jpeg' || mimeType === 'image/png') {
-        const img = mimeType === 'image/jpeg' ? await merged.embedJpg(buffer) : await merged.embedPng(buffer)
+      } else if (kind === 'jpg' || kind === 'png') {
+        const img = kind === 'jpg' ? await merged.embedJpg(buffer) : await merged.embedPng(buffer)
         const page = merged.addPage([A4_WIDTH, A4_HEIGHT])
         const maxW = A4_WIDTH - MARGIN * 2
         const maxH = A4_HEIGHT - MARGIN * 2
@@ -78,7 +90,7 @@ export async function GET(req: Request) {
         const h = img.height * scale
         page.drawImage(img, { x: (A4_WIDTH - w) / 2, y: (A4_HEIGHT - h) / 2, width: w, height: h })
       } else {
-        throw new Error(`不支援的檔案格式：${mimeType}`)
+        throw new Error(`不支援的檔案格式：${mimeType}（${buffer.length} bytes）`)
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
