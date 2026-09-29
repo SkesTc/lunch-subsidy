@@ -442,7 +442,7 @@ function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt
 // ── 總覽頁籤 ───────────────────────────────────────────────
 type StatusFilter = 'all' | 'done' | 'undone'
 
-type BatchPart = { status: 'pending' | 'running' | 'done' | 'error'; url?: string; filename?: string; note?: string }
+type BatchPart = { status: 'pending' | 'running' | 'done' | 'error'; url?: string; filename?: string; note?: string; pct?: number; label?: string }
 
 const batchDownloadUrl = (fileId: string) => `https://drive.google.com/uc?export=download&id=${fileId}`
 
@@ -475,12 +475,34 @@ function BatchPrintModal({ type, semester, planId, schoolYear, onClose }: {
       updatePart(i, { status: 'running' })
       try {
         const res = await fetch(`/api/admin/batch-print-merge?${baseRef.current}&part=${i + 1}`)
-        const j = await res.json().catch(() => ({}))
-        if (!res.ok || !j.ok) throw new Error(j.error || `合併失敗（HTTP ${res.status}）`)
+        if (!res.ok || !res.body) {
+          const j = await res.json().catch(() => ({}))
+          throw new Error(j.error || `合併失敗（HTTP ${res.status}）`)
+        }
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buf = ''
+        let final: { fileId: string; filename: string; errors?: string[] } | null = null
+        while (true) {
+          const { value, done } = await reader.read()
+          if (done) break
+          buf += decoder.decode(value, { stream: true })
+          let nl
+          while ((nl = buf.indexOf('\n')) >= 0) {
+            const line = buf.slice(0, nl).trim()
+            buf = buf.slice(nl + 1)
+            if (!line) continue
+            const msg = JSON.parse(line)
+            if (msg.type === 'progress') updatePart(i, { pct: msg.pct, label: msg.label })
+            else if (msg.type === 'error') throw new Error(msg.error)
+            else if (msg.type === 'done') final = msg
+          }
+        }
+        if (!final) throw new Error('合併中斷（伺服器未回傳結果，可能逾時）')
         okCount++
         updatePart(i, {
-          status: 'done', url: batchDownloadUrl(j.fileId), filename: j.filename,
-          note: j.errors?.length ? `有 ${j.errors.length} 校無法自動合併（PDF 內附說明頁）：${j.errors.slice(0, 3).join('；')}` : undefined,
+          status: 'done', url: batchDownloadUrl(final.fileId), filename: final.filename,
+          note: final.errors?.length ? `有 ${final.errors.length} 校無法自動合併（PDF 內附說明頁）：${final.errors.slice(0, 3).join('；')}` : undefined,
         })
       } catch (e) {
         updatePart(i, { status: 'error', note: e instanceof Error ? e.message : '合併失敗' })
@@ -562,12 +584,20 @@ function BatchPrintModal({ type, semester, planId, schoolYear, onClose }: {
                       第 {i + 1} 份（第 {i * 50 + 1}–{Math.min((i + 1) * 50, total)} 校）
                     </span>
                     {p.status === 'pending' && <span className="text-xs text-gray-400">等待中</span>}
-                    {p.status === 'running' && <span className="text-xs text-blue-600 flex items-center gap-1.5"><Spinner size="xs" /> 合併中…</span>}
+                    {p.status === 'running' && <span className="text-xs text-blue-600 tabular-nums">{p.pct ?? 0}%</span>}
                     {p.status === 'error' && <span className="text-xs text-red-600">失敗</span>}
                     {p.status === 'done' && (
                       <a href={p.url} className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg">📥 下載</a>
                     )}
                   </div>
+                  {p.status === 'running' && (
+                    <>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full transition-all duration-300" style={{ width: `${p.pct ?? 0}%` }} />
+                      </div>
+                      <p className="text-xs text-gray-500">{p.label || '準備中…'}</p>
+                    </>
+                  )}
                   {p.filename && <p className="text-xs text-gray-400 break-all">{p.filename}</p>}
                   {p.note && <p className={`text-xs break-all ${p.status === 'error' ? 'text-red-600' : 'text-orange-600'}`}>{p.note}</p>}
                 </div>
