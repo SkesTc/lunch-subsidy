@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
+import { PDFDocument, PDFPage, StandardFonts, rgb } from 'pdf-lib'
 import { getBatchPrintList } from '@/lib/batchPrint'
 import { fetchFileBytes } from '@/lib/driveFile'
 import { getGasSettings, gasUploadFile } from '@/lib/gas'
@@ -27,6 +27,19 @@ async function fetchAllWithConcurrency<T, R>(items: T[], limit: number, worker: 
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run))
   return results
+}
+
+// 將 PDF 頁面等比例縮放成 A4（保留橫/直向），避免來源檔頁面尺寸不一（A3、Letter、以像素為單位的大尺寸）導致預覽時忽大忽小
+function normalizeToA4(page: PDFPage) {
+  const swapped = page.getRotation().angle % 180 !== 0
+  const { width, height } = page.getSize()
+  const ew = swapped ? height : width
+  const eh = swapped ? width : height
+  const landscape = ew > eh
+  const tw = landscape ? A4_HEIGHT : A4_WIDTH
+  const th = landscape ? A4_WIDTH : A4_HEIGHT
+  const k = Math.min(tw / ew, th / eh)
+  if (Number.isFinite(k) && k > 0 && Math.abs(k - 1) > 0.01) page.scale(k, k)
 }
 
 // 以檔案開頭位元組判斷格式，不依賴 Drive 回傳的 Content-Type
@@ -102,7 +115,7 @@ export async function GET(req: Request) {
             if (kind === 'pdf') {
               const src = await PDFDocument.load(buffer, { ignoreEncryption: true })
               const pages = await merged.copyPages(src, src.getPageIndices())
-              pages.forEach(p => merged.addPage(p))
+              pages.forEach(p => { normalizeToA4(p); merged.addPage(p) })
             } else if (kind === 'jpg' || kind === 'png') {
               const img = kind === 'jpg' ? await merged.embedJpg(buffer) : await merged.embedPng(buffer)
               const page = merged.addPage([A4_WIDTH, A4_HEIGHT])
