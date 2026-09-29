@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { getBatchPrintList } from '@/lib/batchPrint'
 import { fetchFileBytes } from '@/lib/driveFile'
+import { getGasSettings, gasUploadFile } from '@/lib/gas'
+import { getActiveSchoolYear } from '@/lib/schoolYear'
 
 export const maxDuration = 300
 
@@ -83,9 +85,8 @@ export async function GET(req: Request) {
       errors.push(`${String(item.code).padStart(3, '0')} ${item.name}：${msg}`)
       // 失敗的學校改插入一頁錯誤說明，讓合併結果的頁序仍與名冊一致
       const page = merged.addPage([A4_WIDTH, A4_HEIGHT])
-      page.drawText(`${item.name}（編號 ${item.code}）`, { x: MARGIN, y: A4_HEIGHT - 100, size: 16, font })
-      page.drawText('此校檔案無法自動合併，請至系統另行開啟列印', { x: MARGIN, y: A4_HEIGHT - 130, size: 12, font, color: rgb(0.8, 0.2, 0.2) })
-      page.drawText(msg, { x: MARGIN, y: A4_HEIGHT - 150, size: 9, font, color: rgb(0.5, 0.5, 0.5) })
+      page.drawText(`School code ${String(item.code).padStart(3, '0')}`, { x: MARGIN, y: A4_HEIGHT - 100, size: 16, font })
+      page.drawText('This file could not be merged. Please open and print it separately.', { x: MARGIN, y: A4_HEIGHT - 130, size: 12, font, color: rgb(0.8, 0.2, 0.2) })
     }
   }
 
@@ -94,11 +95,19 @@ export async function GET(req: Request) {
   const partSuffix = totalParts > 1 ? `_第${part}份（共${totalParts}份）` : ''
   const filename = `批次列印_${typeLabel}_第${semester}學期${partSuffix}.pdf`
 
-  return new NextResponse(Buffer.from(pdfBytes), {
-    headers: {
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`,
-      'X-Merge-Errors': String(errors.length),
-    },
-  })
+  // 合併檔存入 Drive 並只回傳連結（避免 Vercel 回應大小上限 4.5MB）
+  const { gasUrl, gasSecret, driveFolderId } = await getGasSettings()
+  if (!gasUrl || !driveFolderId) return NextResponse.json({ error: '尚未設定 GAS 網址或 Google Drive 資料夾 ID' }, { status: 500 })
+  const year = schoolYear || await getActiveSchoolYear()
+  try {
+    const fileId = await gasUploadFile({
+      gasUrl, gasSecret, folderId: driveFolderId,
+      subFolder: `${year}學年度/批次列印`,
+      filename, mimeType: 'application/pdf',
+      buffer: pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer,
+    })
+    return NextResponse.json({ ok: true, fileId, url: `https://drive.google.com/file/d/${fileId}/view`, filename, totalParts, errors })
+  } catch (e) {
+    return NextResponse.json({ error: `儲存合併檔至 Drive 失敗：${e instanceof Error ? e.message : String(e)}` }, { status: 500 })
+  }
 }

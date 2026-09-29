@@ -48,6 +48,7 @@ export default function BatchPrintPage() {
   const [mergeUrl, setMergeUrl] = useState('')
   const [merging, setMerging] = useState(false)
   const [mergeError, setMergeError] = useState('')
+  const [mergeLink, setMergeLink] = useState<{ url: string; filename: string } | null>(null)
   const printedRef = useRef(false)
 
   useEffect(() => {
@@ -127,26 +128,13 @@ export default function BatchPrintPage() {
   }, [allDone])
 
   async function downloadMerged(part: number) {
-    setMerging(true); setMergeError('')
+    setMerging(true); setMergeError(''); setMergeLink(null)
     try {
       const res = await fetch(`${mergeUrl}&part=${part}`)
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}))
-        throw new Error(d.error || '合併失敗')
-      }
-      const blob = await res.blob()
-      const objectUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = objectUrl
-      const cd = res.headers.get('Content-Disposition') || ''
-      const match = cd.match(/filename\*=UTF-8''([^;]+)/)
-      a.download = match ? decodeURIComponent(match[1]) : '批次列印.pdf'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 5000)
-      const errCount = Number(res.headers.get('X-Merge-Errors') || '0')
-      if (errCount > 0) setMergeError(`已下載，但有 ${errCount} 校檔案無法自動合併（PDF 內會附上說明頁）`)
+      const d = await res.json().catch(() => ({}))
+      if (!res.ok || !d.ok) throw new Error(d.error || `合併失敗（HTTP ${res.status}）`)
+      setMergeLink({ url: d.url, filename: d.filename })
+      if (d.errors?.length > 0) setMergeError(`有 ${d.errors.length} 校檔案無法自動合併（PDF 內會附上說明頁）`)
     } catch (e) {
       setMergeError(e instanceof Error ? e.message : '合併失敗')
     }
@@ -172,6 +160,11 @@ export default function BatchPrintPage() {
             {listLoading ? '讀取學校清單中…' : items.length === 0 ? '沒有已核准的檔案可列印' : `共 ${items.length} 校，已處理 ${doneCount}/${items.length}`}
           </p>
           {mergeError && <p className="text-xs mt-1 text-orange-700">{mergeError}</p>}
+          {mergeLink && (
+            <p className="text-xs mt-1">
+              ✅ 已合併並存入 Google Drive：<a href={mergeLink.url} target="_blank" rel="noopener noreferrer" className="text-blue-700 underline">{mergeLink.filename}</a>
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           {Array.from({ length: Math.ceil(items.length / 50) }, (_, i) => {
@@ -181,7 +174,7 @@ export default function BatchPrintPage() {
             return (
               <button key={i} onClick={() => downloadMerged(i + 1)} disabled={merging}
                 className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-xs cursor-pointer">
-                {merging ? '合併中…' : multi ? `📥 下載第 ${i + 1} 份（第 ${from}–${to} 校）` : '📥 下載合併 PDF'}
+                {merging ? '合併中…' : multi ? `📥 合併第 ${i + 1} 份（第 ${from}–${to} 校）` : '📥 合併成 PDF'}
               </button>
             )
           })}
