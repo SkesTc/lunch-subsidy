@@ -45,6 +45,9 @@ export default function BatchPrintPage() {
   const [listError, setListError] = useState('')
   const [typeLabel, setTypeLabel] = useState('')
   const [semLabel, setSemLabel] = useState('')
+  const [mergeUrl, setMergeUrl] = useState('')
+  const [merging, setMerging] = useState(false)
+  const [mergeError, setMergeError] = useState('')
   const printedRef = useRef(false)
 
   useEffect(() => {
@@ -56,6 +59,7 @@ export default function BatchPrintPage() {
 
     setTypeLabel(type === 'scan' ? '經費收支結算表' : '賸餘款送款憑單')
     setSemLabel(`第${semester}學期`)
+    setMergeUrl(`/api/admin/batch-print-merge?${new URLSearchParams({ type, semester, ...(planId ? { plan_id: planId } : {}), ...(schoolYear ? { school_year: schoolYear } : {}) })}`)
 
     const qs = new URLSearchParams({ type, semester, ...(planId ? { plan_id: planId } : {}), ...(schoolYear ? { school_year: schoolYear } : {}) })
     fetch(`/api/admin/batch-print-list?${qs}`).then(r => r.json()).then(data => {
@@ -122,6 +126,33 @@ export default function BatchPrintPage() {
     }
   }, [allDone])
 
+  async function downloadMerged() {
+    setMerging(true); setMergeError('')
+    try {
+      const res = await fetch(mergeUrl)
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        throw new Error(d.error || '合併失敗')
+      }
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      const cd = res.headers.get('Content-Disposition') || ''
+      const match = cd.match(/filename\*=UTF-8''([^;]+)/)
+      a.download = match ? decodeURIComponent(match[1]) : '批次列印.pdf'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 5000)
+      const errCount = Number(res.headers.get('X-Merge-Errors') || '0')
+      if (errCount > 0) setMergeError(`已下載，但有 ${errCount} 校檔案無法自動合併（PDF 內會附上說明頁）`)
+    } catch (e) {
+      setMergeError(e instanceof Error ? e.message : '合併失敗')
+    }
+    setMerging(false)
+  }
+
   return (
     <div className="p-6">
       <style>{`
@@ -140,12 +171,21 @@ export default function BatchPrintPage() {
           <p className="text-xs mt-1">
             {listLoading ? '讀取學校清單中…' : items.length === 0 ? '沒有已核准的檔案可列印' : `共 ${items.length} 校，已處理 ${doneCount}/${items.length}`}
           </p>
+          {mergeError && <p className="text-xs mt-1 text-orange-700">{mergeError}</p>}
         </div>
-        {allDone && items.length > 0 && (
-          <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs hover:bg-blue-700 cursor-pointer">
-            重新列印
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {items.length > 0 && (
+            <button onClick={downloadMerged} disabled={merging}
+              className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-xs cursor-pointer">
+              {merging ? '合併中…' : '📥 下載合併 PDF'}
+            </button>
+          )}
+          {allDone && items.length > 0 && (
+            <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs hover:bg-blue-700 cursor-pointer">
+              重新列印
+            </button>
+          )}
+        </div>
       </div>
 
       {listError && <p className="text-red-600 text-sm">{listError}</p>}
