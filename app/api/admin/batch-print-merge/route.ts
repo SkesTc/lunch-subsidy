@@ -5,6 +5,7 @@ import { getBatchPrintList } from '@/lib/batchPrint'
 import { fetchFileBytes } from '@/lib/driveFile'
 import { getGasSettings, gasUploadFile } from '@/lib/gas'
 import { getActiveSchoolYear } from '@/lib/schoolYear'
+import { batchMergeKey, saveBatchMergePart } from '@/lib/batchMerge'
 
 export const maxDuration = 300
 
@@ -118,6 +119,8 @@ export async function GET(req: Request) {
       filename, mimeType: 'application/pdf',
       buffer: pdfBytes.buffer.slice(pdfBytes.byteOffset, pdfBytes.byteOffset + pdfBytes.byteLength) as ArrayBuffer,
     })
+    const key = await batchMergeKey({ userEmail: session.user.email!, type, semester, planId, schoolYear: year })
+    await saveBatchMergePart(key, { part, total: fullList.length, partCount: totalParts, fileId, filename, errors })
     return NextResponse.json({ ok: true, fileId, url: `https://drive.google.com/file/d/${fileId}/view`, filename, totalParts, errors })
   } catch (e) {
     return NextResponse.json({ error: `儲存合併檔至 Drive 失敗：${e instanceof Error ? e.message : String(e)}` }, { status: 500 })
