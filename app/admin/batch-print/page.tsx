@@ -126,10 +126,10 @@ export default function BatchPrintPage() {
     }
   }, [allDone])
 
-  async function downloadMerged() {
+  async function downloadMerged(part: number) {
     setMerging(true); setMergeError('')
     try {
-      const res = await fetch(mergeUrl)
+      const res = await fetch(`${mergeUrl}&part=${part}`)
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         throw new Error(d.error || '合併失敗')
@@ -174,12 +174,17 @@ export default function BatchPrintPage() {
           {mergeError && <p className="text-xs mt-1 text-orange-700">{mergeError}</p>}
         </div>
         <div className="flex items-center gap-2">
-          {items.length > 0 && (
-            <button onClick={downloadMerged} disabled={merging}
-              className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-xs cursor-pointer">
-              {merging ? '合併中…' : '📥 下載合併 PDF'}
-            </button>
-          )}
+          {Array.from({ length: Math.ceil(items.length / 50) }, (_, i) => {
+            const from = i * 50 + 1
+            const to = Math.min((i + 1) * 50, items.length)
+            const multi = items.length > 50
+            return (
+              <button key={i} onClick={() => downloadMerged(i + 1)} disabled={merging}
+                className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-xs cursor-pointer">
+                {merging ? '合併中…' : multi ? `📥 下載第 ${i + 1} 份（第 ${from}–${to} 校）` : '📥 下載合併 PDF'}
+              </button>
+            )
+          })}
           {allDone && items.length > 0 && (
             <button onClick={() => window.print()} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs hover:bg-blue-700 cursor-pointer">
               重新列印

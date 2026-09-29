@@ -10,6 +10,7 @@ const A4_WIDTH = 595.28
 const A4_HEIGHT = 841.89
 const MARGIN = 24
 const FETCH_CONCURRENCY = 10
+const PART_SIZE = 50
 
 // 併發抓取所有檔案（保留原始順序），避免逐校序列下載導致逾時
 async function fetchAllWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
@@ -36,9 +37,13 @@ export async function GET(req: Request) {
   const planId = searchParams.get('plan_id') || null
   const schoolYear = searchParams.get('school_year') || undefined
 
-  const list = await getBatchPrintList({ userEmail: session.user.email!, type, semester, planId, schoolYear })
-  if (list.length === 0) return NextResponse.json({ error: '沒有已核准的檔案可合併' }, { status: 404 })
-  if (list.length > 200) return NextResponse.json({ error: `學校數過多（${list.length} 校），請縮小範圍（例如分區別或計畫）後再試` }, { status: 400 })
+  const part = Math.max(1, Number(searchParams.get('part') || '1'))
+
+  const fullList = await getBatchPrintList({ userEmail: session.user.email!, type, semester, planId, schoolYear })
+  if (fullList.length === 0) return NextResponse.json({ error: '沒有已核准的檔案可合併' }, { status: 404 })
+  const totalParts = Math.ceil(fullList.length / PART_SIZE)
+  if (part > totalParts) return NextResponse.json({ error: `不存在第 ${part} 份（共 ${totalParts} 份）` }, { status: 400 })
+  const list = fullList.slice((part - 1) * PART_SIZE, part * PART_SIZE)
 
   // 先併發抓取所有檔案內容（I/O 密集，平行處理避免逾時），再依序合併（CPU 處理，速度快）
   const fetched = await fetchAllWithConcurrency(list, FETCH_CONCURRENCY, async item => {
@@ -86,7 +91,8 @@ export async function GET(req: Request) {
 
   const pdfBytes = await merged.save()
   const typeLabel = type === 'scan' ? '結算表' : '送款憑單'
-  const filename = `批次列印_${typeLabel}_第${semester}學期.pdf`
+  const partSuffix = totalParts > 1 ? `_第${part}份（共${totalParts}份）` : ''
+  const filename = `批次列印_${typeLabel}_第${semester}學期${partSuffix}.pdf`
 
   return new NextResponse(Buffer.from(pdfBytes), {
     headers: {
