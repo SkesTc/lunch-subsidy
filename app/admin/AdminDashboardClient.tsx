@@ -473,6 +473,7 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   const [remitFilter, setRemitFilter] = useState<StatusFilter>('all')
   const [expenseFilter, setExpenseFilter] = useState<StatusFilter>('all')
   const [showRemittanceMenu, setShowRemittanceMenu] = useState(false)
+  const [showBatchPrintMenu, setShowBatchPrintMenu] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [hostSchool, setHostSchool] = useState('')
   const [planName, setPlanName] = useState('')
@@ -993,6 +994,31 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
           className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
           📑 經費收支結算表
         </button>
+
+        <div className="relative">
+          <button onClick={() => setShowBatchPrintMenu(v => !v)}
+            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer flex items-center gap-1.5">
+            🖨️ 批次列印附件 ▾
+          </button>
+          {showBatchPrintMenu && (
+            <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[180px] py-1"
+              onMouseLeave={() => setShowBatchPrintMenu(false)}>
+              {[
+                { label: '經費收支結算表', type: 'scan' },
+                { label: '賸餘款送款憑單', type: 'remittance' },
+              ].map(({ label, type }) => {
+                const qs = new URLSearchParams({ type, semester: String(effectiveSem), school_year: activeSchoolYear, ...(selectedPlan ? { plan_id: selectedPlan.id } : {}) })
+                return (
+                  <a key={type} href={`/admin/batch-print?${qs}`} target="_blank" rel="noopener noreferrer"
+                    onClick={() => setShowBatchPrintMenu(false)}
+                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer">
+                    {label}
+                  </a>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
         {(driveFolderUrl || driveFolderId) ? (
           <a href={driveFolderUrl || `https://drive.google.com/drive/folders/${driveFolderId}`} target="_blank" rel="noopener noreferrer"
