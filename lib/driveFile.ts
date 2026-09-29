@@ -22,9 +22,9 @@ export async function fetchFileBytes(path: string): Promise<{ buffer: Buffer; mi
     const driveAuth = getDriveAuth()
     if (driveAuth) {
       const drive = google.drive({ version: 'v3', auth: driveAuth })
-      const meta = await drive.files.get({ fileId: path, fields: 'mimeType' })
-      const mimeType = meta.data.mimeType || 'application/octet-stream'
+      // 單次呼叫：直接下載內容，mimeType 從回應標頭讀取，省下額外的 metadata 請求
       const res = await drive.files.get({ fileId: path, alt: 'media' }, { responseType: 'arraybuffer' })
+      const mimeType = (res.headers?.['content-type'] as string) || 'application/octet-stream'
       return { buffer: Buffer.from(res.data as ArrayBuffer), mimeType }
     }
     const { gasUrl, gasSecret } = await getGasSettings()

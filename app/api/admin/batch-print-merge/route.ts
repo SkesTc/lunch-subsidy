@@ -4,11 +4,26 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { getBatchPrintList } from '@/lib/batchPrint'
 import { fetchFileBytes } from '@/lib/driveFile'
 
-export const maxDuration = 60
+export const maxDuration = 300
 
 const A4_WIDTH = 595.28
 const A4_HEIGHT = 841.89
 const MARGIN = 24
+const FETCH_CONCURRENCY = 10
+
+// 併發抓取所有檔案（保留原始順序），避免逐校序列下載導致逾時
+async function fetchAllWithConcurrency<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let cursor = 0
+  async function run() {
+    while (cursor < items.length) {
+      const i = cursor++
+      results[i] = await worker(items[i], i)
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run))
+  return results
+}
 
 // 將所有學校的已核准檔案（PDF 直接併頁，圖片轉成一頁）依編號順序合併成單一 PDF
 export async function GET(req: Request) {
@@ -23,15 +38,25 @@ export async function GET(req: Request) {
 
   const list = await getBatchPrintList({ userEmail: session.user.email!, type, semester, planId, schoolYear })
   if (list.length === 0) return NextResponse.json({ error: '沒有已核准的檔案可合併' }, { status: 404 })
-  if (list.length > 80) return NextResponse.json({ error: `學校數過多（${list.length} 校），請縮小範圍（例如分區別或計畫）後再試` }, { status: 400 })
+  if (list.length > 200) return NextResponse.json({ error: `學校數過多（${list.length} 校），請縮小範圍（例如分區別或計畫）後再試` }, { status: 400 })
+
+  // 先併發抓取所有檔案內容（I/O 密集，平行處理避免逾時），再依序合併（CPU 處理，速度快）
+  const fetched = await fetchAllWithConcurrency(list, FETCH_CONCURRENCY, async item => {
+    try {
+      const { buffer, mimeType } = await fetchFileBytes(item.path)
+      return { item, buffer, mimeType, error: null as string | null }
+    } catch (e) {
+      return { item, buffer: null, mimeType: null, error: e instanceof Error ? e.message : String(e) }
+    }
+  })
 
   const merged = await PDFDocument.create()
   const font = await merged.embedFont(StandardFonts.Helvetica)
   const errors: string[] = []
 
-  for (const item of list) {
+  for (const { item, buffer, mimeType, error: fetchError } of fetched) {
     try {
-      const { buffer, mimeType } = await fetchFileBytes(item.path)
+      if (fetchError || !buffer || !mimeType) throw new Error(fetchError || '下載失敗')
       if (mimeType === 'application/pdf') {
         const src = await PDFDocument.load(buffer, { ignoreEncryption: true })
         const pages = await merged.copyPages(src, src.getPageIndices())
