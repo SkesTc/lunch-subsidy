@@ -442,6 +442,105 @@ function FileViewerModal({ fileId, fileExt, onClose }: { fileId: string; fileExt
 // ── 總覽頁籤 ───────────────────────────────────────────────
 type StatusFilter = 'all' | 'done' | 'undone'
 
+type BatchPart = { status: 'pending' | 'running' | 'done' | 'error'; url?: string; filename?: string; note?: string }
+
+function BatchPrintModal({ type, semester, planId, schoolYear, onClose }: {
+  type: 'scan' | 'remittance'; semester: number; planId: string | null; schoolYear: string; onClose: () => void
+}) {
+  const [total, setTotal] = useState<number | null>(null)
+  const [parts, setParts] = useState<BatchPart[]>([])
+  const [error, setError] = useState('')
+  const startedRef = useRef(false)
+  const cancelledRef = useRef(false)
+  const typeLabel = type === 'scan' ? '經費收支結算表' : '賸餘款送款憑單'
+
+  function updatePart(i: number, patch: Partial<BatchPart>) {
+    setParts(prev => prev.map((p, idx) => idx === i ? { ...p, ...patch } : p))
+  }
+
+  useEffect(() => {
+    if (startedRef.current) return
+    startedRef.current = true
+    async function run() {
+      const base = new URLSearchParams({ type, semester: String(semester), school_year: schoolYear, ...(planId ? { plan_id: planId } : {}) })
+      try {
+        const r = await fetch(`/api/admin/batch-print-list?${base}`)
+        const d = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(d.error || `讀取清單失敗（HTTP ${r.status}）`)
+        const n = (d.list || []).length
+        if (n === 0) { setError('沒有已核准的檔案可合併'); return }
+        setTotal(n)
+        const count = Math.ceil(n / 50)
+        setParts(Array.from({ length: count }, () => ({ status: 'pending' as const })))
+        for (let i = 0; i < count; i++) {
+          if (cancelledRef.current) return
+          updatePart(i, { status: 'running' })
+          try {
+            const res = await fetch(`/api/admin/batch-print-merge?${base}&part=${i + 1}`)
+            const j = await res.json().catch(() => ({}))
+            if (!res.ok || !j.ok) throw new Error(j.error || `合併失敗（HTTP ${res.status}）`)
+            updatePart(i, {
+              status: 'done', url: `https://drive.google.com/uc?export=download&id=${j.fileId}`, filename: j.filename,
+              note: j.errors?.length ? `有 ${j.errors.length} 校無法自動合併（PDF 內附說明頁）：${j.errors.slice(0, 3).join('；')}` : undefined,
+            })
+          } catch (e) {
+            updatePart(i, { status: 'error', note: e instanceof Error ? e.message : '合併失敗' })
+          }
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : '發生錯誤')
+      }
+    }
+    run()
+  }, [type, semester, planId, schoolYear])
+
+  const busy = !error && (total === null || parts.some(p => p.status === 'pending' || p.status === 'running'))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold text-gray-800">批次合併：{typeLabel}（第{semester}學期）</h3>
+          <button onClick={() => { cancelledRef.current = true; onClose() }} className="text-gray-400 hover:text-gray-600 text-xl leading-none cursor-pointer">×</button>
+        </div>
+        {error ? (
+          <p className="text-sm text-red-600">{error}</p>
+        ) : total === null ? (
+          <p className="text-sm text-gray-500 flex items-center gap-2"><Spinner size="xs" /> 讀取學校清單中…</p>
+        ) : (
+          <>
+            <p className="text-xs text-gray-500">共 {total} 校，依學校編號排序，每 50 校合併成一份 PDF。合併需要一些時間，請保持此視窗開啟。</p>
+            <div className="space-y-2">
+              {parts.map((p, i) => (
+                <div key={i} className="border border-gray-200 rounded-xl p-3 space-y-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-medium text-gray-700">
+                      第 {i + 1} 份（第 {i * 50 + 1}–{Math.min((i + 1) * 50, total)} 校）
+                    </span>
+                    {p.status === 'pending' && <span className="text-xs text-gray-400">等待中</span>}
+                    {p.status === 'running' && <span className="text-xs text-blue-600 flex items-center gap-1.5"><Spinner size="xs" /> 合併中…</span>}
+                    {p.status === 'error' && <span className="text-xs text-red-600">失敗</span>}
+                    {p.status === 'done' && (
+                      <a href={p.url} className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg">📥 下載</a>
+                    )}
+                  </div>
+                  {p.filename && <p className="text-xs text-gray-400 break-all">{p.filename}</p>}
+                  {p.note && <p className={`text-xs break-all ${p.status === 'error' ? 'text-red-600' : 'text-orange-600'}`}>{p.note}</p>}
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        <div className="flex justify-end">
+          <button onClick={() => { cancelledRef.current = true; onClose() }} className="px-4 py-2 rounded-lg text-sm border border-gray-300 text-gray-600 hover:bg-gray-50 cursor-pointer">
+            {busy ? '取消並關閉' : '關閉'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSettlements, profiles, contacts, activeSchoolYear, plans, planAmounts, driveFolderId, setDriveFolderId, driveFolderUrl, setDriveFolderUrl }: {
   schools: School[]; amounts: AmountRow[]; banks: BankRow[]; settlements: SettleRow[]; profiles: ProfileRow[]; contacts: Record<string, ContactInfo>; activeSchoolYear: string
   plans: Plan[]; planAmounts: PlanAmount[]
@@ -474,6 +573,7 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
   const [expenseFilter, setExpenseFilter] = useState<StatusFilter>('all')
   const [showRemittanceMenu, setShowRemittanceMenu] = useState(false)
   const [showBatchPrintMenu, setShowBatchPrintMenu] = useState(false)
+  const [batchPrint, setBatchPrint] = useState<'scan' | 'remittance' | null>(null)
   const [uploading, setUploading] = useState(false)
   const [hostSchool, setHostSchool] = useState('')
   const [planName, setPlanName] = useState('')
@@ -998,7 +1098,7 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
         <div className="relative">
           <button onClick={() => setShowBatchPrintMenu(v => !v)}
             className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer flex items-center gap-1.5">
-            🖨️ 批次列印附件 ▾
+            📦 批次合併 PDF ▾
           </button>
           {showBatchPrintMenu && (
             <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[180px] py-1"
@@ -1006,17 +1106,16 @@ function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSe
               {[
                 { label: '經費收支結算表', type: 'scan' },
                 { label: '賸餘款送款憑單', type: 'remittance' },
-              ].map(({ label, type }) => {
-                const qs = new URLSearchParams({ type, semester: String(effectiveSem), school_year: activeSchoolYear, ...(selectedPlan ? { plan_id: selectedPlan.id } : {}) })
-                return (
-                  <a key={type} href={`/admin/batch-print?${qs}`} target="_blank" rel="noopener noreferrer"
-                    onClick={() => setShowBatchPrintMenu(false)}
-                    className="block px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer">
-                    {label}
-                  </a>
-                )
-              })}
+              ].map(({ label, type }) => (
+                <button key={type} onClick={() => { setShowBatchPrintMenu(false); setBatchPrint(type as 'scan' | 'remittance') }}
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer">
+                  {label}
+                </button>
+              ))}
             </div>
+          )}
+          {batchPrint && (
+            <BatchPrintModal type={batchPrint} semester={effectiveSem} planId={selectedPlan?.id ?? null} schoolYear={activeSchoolYear} onClose={() => setBatchPrint(null)} />
           )}
         </div>
 
