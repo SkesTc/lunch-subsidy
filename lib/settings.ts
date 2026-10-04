@@ -142,8 +142,20 @@ export async function getGlobalSystemName(): Promise<string> {
 }
 
 
-/** 讀取全域設定檔原始內容（不疊加預設值與分區設定） */
-export async function readGlobalSettingsRaw(): Promise<Record<string, unknown>> {
+// ── 全域設定儲存：system_settings 資料表（每個設定一列）──────────────
+// 相容過渡：資料表尚未建立時沿用 settings.json；已建立但尚無資料時，第一次寫入會先搬移整份舊設定。
+const TABLE = 'system_settings'
+
+type TableState = { state: 'ready' | 'empty' | 'missing'; data: Record<string, unknown> }
+
+async function readTable(): Promise<TableState> {
+  const { data, error } = await supabaseAdmin.from(TABLE).select('key, value')
+  if (error) return { state: 'missing', data: {} }
+  if (!data || data.length === 0) return { state: 'empty', data: {} }
+  return { state: 'ready', data: Object.fromEntries(data.map(r => [r.key as string, r.value])) }
+}
+
+async function readFile(): Promise<Record<string, unknown>> {
   try {
     const { data } = await supabaseAdmin.storage.from(BUCKET).download(PATH)
     if (data) return JSON.parse(await data.text())
@@ -151,24 +163,55 @@ export async function readGlobalSettingsRaw(): Promise<Record<string, unknown>> 
   return {}
 }
 
-/**
- * 全域設定唯一寫入口：只合併到全域設定檔原始內容，不會把分區合併後的值寫回。
- * 分區欄位只允許清空（寫入空字串），避免分區值滲入全域檔後在其他分區留空時「冒出來」。
- */
-export async function writeGlobalSettings(updates: Record<string, unknown>) {
-  const filtered = filterGlobalUpdates(updates)
-  const raw = await readGlobalSettingsRaw()
-  const blob = new Blob([JSON.stringify({ ...raw, ...filtered }, null, 2)], { type: 'application/json' })
-  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(PATH, blob, { upsert: true, contentType: 'application/json' })
-  if (error) throw new Error(error.message)
-  _cacheMap.clear()
-}
-
-/** 整份覆寫全域設定檔（僅供資料清理工具使用；一般儲存請用 writeGlobalSettings） */
-export async function replaceGlobalSettingsRaw(obj: Record<string, unknown>) {
+async function writeFile(obj: Record<string, unknown>) {
   const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' })
   const { error } = await supabaseAdmin.storage.from(BUCKET).upload(PATH, blob, { upsert: true, contentType: 'application/json' })
   if (error) throw new Error(error.message)
+}
+
+async function upsertRows(obj: Record<string, unknown>) {
+  const now = new Date().toISOString()
+  const rows = Object.entries(obj).filter(([, v]) => v !== undefined).map(([key, value]) => ({ key, value, updated_at: now }))
+  if (rows.length === 0) return
+  const { error } = await supabaseAdmin.from(TABLE).upsert(rows, { onConflict: 'key' })
+  if (error) throw new Error(error.message)
+}
+
+/** 讀取全域設定原始內容（不疊加預設值與分區設定） */
+export async function readGlobalSettingsRaw(): Promise<Record<string, unknown>> {
+  const t = await readTable()
+  return t.state === 'ready' ? t.data : readFile()
+}
+
+/**
+ * 全域設定唯一寫入口：只更新有變動的設定，不會把分區合併後的值寫回。
+ * 分區欄位只允許清空（寫入空字串），避免分區值滲入全域設定後在其他分區留空時「冒出來」。
+ */
+export async function writeGlobalSettings(updates: Record<string, unknown>) {
+  const filtered = filterGlobalUpdates(updates)
+  const t = await readTable()
+  if (t.state === 'missing') {
+    await writeFile({ ...(await readFile()), ...filtered })
+  } else {
+    if (t.state === 'empty') await upsertRows(await readFile())
+    await upsertRows(filtered)
+  }
+  _cacheMap.clear()
+}
+
+/** 整份覆寫全域設定（僅供資料清理工具使用；一般儲存請用 writeGlobalSettings） */
+export async function replaceGlobalSettingsRaw(obj: Record<string, unknown>) {
+  const t = await readTable()
+  if (t.state === 'missing') {
+    await writeFile(obj)
+  } else {
+    const remove = Object.keys(t.data).filter(k => !(k in obj))
+    if (remove.length > 0) {
+      const { error } = await supabaseAdmin.from(TABLE).delete().in('key', remove)
+      if (error) throw new Error(error.message)
+    }
+    await upsertRows(obj)
+  }
   _cacheMap.clear()
 }
 
