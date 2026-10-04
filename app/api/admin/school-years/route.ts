@@ -1,18 +1,11 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getAllSettings, invalidateSettingsCache } from '@/lib/settings'
+import { getAllSettings, writeGlobalSettings } from '@/lib/settings'
 import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
 
 const BUCKET = 'settlement-files'
-const SETTINGS_PATH = '__system/settings.json'
-
-async function writeSettings(s: Record<string, unknown>) {
-  const blob = new Blob([JSON.stringify(s, null, 2)], { type: 'application/json' })
-  await supabaseAdmin.storage.from(BUCKET).upload(SETTINGS_PATH, blob, { upsert: true, contentType: 'application/json' })
-  invalidateSettingsCache()
-}
 
 // GET: list all school years + active year
 export async function GET() {
@@ -55,7 +48,7 @@ export async function POST(req: Request) {
     // 自動補入 school_years 清單（防止 DB 查到的學年度切換失敗）
     const years: string[] = Array.isArray(settings.school_years) ? settings.school_years : ['115']
     const updatedYears = years.includes(schoolYear) ? years : [...years, schoolYear].sort()
-    await writeSettings({ ...settings, school_years: updatedYears, active_school_year: schoolYear, school_year: schoolYear })
+    await writeGlobalSettings({ school_years: updatedYears, active_school_year: schoolYear, school_year: schoolYear })
     return NextResponse.json({ ok: true })
   }
 
@@ -65,7 +58,7 @@ export async function POST(req: Request) {
     const years: string[] = Array.isArray(settings.school_years) ? settings.school_years : ['115']
     if (years.includes(schoolYear)) return NextResponse.json({ error: '此學年度已存在' }, { status: 409 })
     const newYears = [...years, schoolYear].sort()
-    await writeSettings({ ...settings, school_years: newYears, active_school_year: schoolYear, school_year: schoolYear })
+    await writeGlobalSettings({ school_years: newYears, active_school_year: schoolYear, school_year: schoolYear })
     return NextResponse.json({ ok: true })
   }
 

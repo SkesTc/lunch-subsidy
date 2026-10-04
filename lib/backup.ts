@@ -1,12 +1,12 @@
 import { supabaseAdmin } from '@/lib/supabase'
-import { getAllSettings } from '@/lib/settings'
+import { getAllSettings, readGlobalSettingsRaw } from '@/lib/settings'
 import { getGasSettings } from '@/lib/gas'
 
 export type BackupType = 'manual' | 'scheduled' | 'school_year'
 
 // ── 共用：查詢所有資料並組裝備份 JSON ───────────────────────────
 export async function buildBackupPayload(type: 'manual' | 'scheduled' | 'school_year') {
-  const settings = await getAllSettings()
+  const [settings, globalSettings] = await Promise.all([getAllSettings(), readGlobalSettingsRaw()])
 
   const [
     { data: schools },
@@ -43,7 +43,7 @@ export async function buildBackupPayload(type: 'manual' | 'scheduled' | 'school_
       change_requests: changeRequests || [],
       user_profiles: userProfiles || [],
     },
-    settings,
+    settings: globalSettings,
   }
 }
 

@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getGasSettings } from '@/lib/gas'
-import { getAllSettings } from '@/lib/settings'
+import { writeGlobalSettings } from '@/lib/settings'
 import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 
@@ -14,7 +14,6 @@ export async function POST(req: Request) {
   const { fileId, scopes } = await req.json()
   if (!fileId || !scopes?.length) return NextResponse.json({ error: '缺少參數' }, { status: 400 })
 
-  const settings = await getAllSettings()
   const { gasUrl, gasSecret } = await getGasSettings()
 
   // 從 Drive 下載備份內容
@@ -62,9 +61,8 @@ export async function POST(req: Request) {
 
   // 還原系統設定
   if (scopes.includes('settings') && backup.settings) {
-    const settingsJson = JSON.stringify({ ...settings, ...(backup.settings as object) }, null, 2)
-    const blob = new Blob([settingsJson], { type: 'application/json' })
-    await supabaseAdmin.storage.from('settlement-files').upload('__system/settings.json', blob, { upsert: true, contentType: 'application/json' })
+    // 舊備份的 settings 是分區合併後的內容，經 writeGlobalSettings 過濾掉分區欄位再還原
+    await writeGlobalSettings(backup.settings as Record<string, unknown>)
     results['settings'] = 1
   }
 

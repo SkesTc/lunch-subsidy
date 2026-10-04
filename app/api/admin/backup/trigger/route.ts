@@ -1,12 +1,9 @@
 import { auth } from '@/lib/auth'
-import { getAllSettings, invalidateSettingsCache } from '@/lib/settings'
+import { getAllSettings, writeGlobalSettings } from '@/lib/settings'
 import { getGasSettings } from '@/lib/gas'
 import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 
-const BUCKET = 'settlement-files'
-const SETTINGS_PATH = '__system/settings.json'
-import { supabaseAdmin } from '@/lib/supabase'
 
 // POST /api/admin/backup/trigger → 設定或取消 GAS 定時觸發
 export async function POST(req: Request) {
@@ -21,11 +18,8 @@ export async function POST(req: Request) {
   const currentSettings = await getAllSettings()
   const { gasUrl, gasSecret } = await getGasSettings()
 
-  // 儲存備份相關設定
-  const merged = { ...currentSettings, ...newSettings }
-  const blob = new Blob([JSON.stringify(merged, null, 2)], { type: 'application/json' })
-  await supabaseAdmin.storage.from(BUCKET).upload(SETTINGS_PATH, blob, { upsert: true, contentType: 'application/json' })
-  invalidateSettingsCache()
+  // 只儲存備份相關設定（不把分區合併後的整包設定寫回全域檔）
+  await writeGlobalSettings(newSettings || {})
 
   if (!gasUrl) return NextResponse.json({ ok: true, gas: false, message: 'GAS 未設定，設定已儲存但無法設定定時觸發' })
 

@@ -40,7 +40,7 @@ export interface AllSettings {
   [key: string]: string | string[]
 }
 
-const DEFAULTS: AllSettings = {
+export const DEFAULTS: AllSettings = {
   system_name: '臺中市第2區免費營養午餐核銷系統',
   host_school: '',
   school_year: '115',
@@ -142,6 +142,34 @@ export async function getGlobalSystemName(): Promise<string> {
     }
   } catch { /* ignore */ }
   return DEFAULTS.system_name
+}
+
+// 分區專屬欄位：由「區別管理」維護（zones 表 / zone_settings），不屬於全域設定檔
+export const ZONE_KEYS = ['host_school', 'admin_name', 'admin_title', 'admin_phone', 'block1_open', 'block1_deadline'] as const
+const isZoneKey = (k: string) => (ZONE_KEYS as readonly string[]).includes(k)
+
+/** 讀取全域設定檔原始內容（不疊加預設值與分區設定） */
+export async function readGlobalSettingsRaw(): Promise<Record<string, unknown>> {
+  try {
+    const { data } = await supabaseAdmin.storage.from(BUCKET).download(PATH)
+    if (data) return JSON.parse(await data.text())
+  } catch { /* 尚無設定檔 */ }
+  return {}
+}
+
+/**
+ * 全域設定唯一寫入口：只合併到全域設定檔原始內容，不會把分區合併後的值寫回。
+ * 分區欄位只允許清空（寫入空字串），避免分區值滲入全域檔後在其他分區留空時「冒出來」。
+ */
+export async function writeGlobalSettings(updates: Record<string, unknown>) {
+  const filtered = Object.fromEntries(
+    Object.entries(updates).filter(([k, v]) => !isZoneKey(k) || v === '')
+  )
+  const raw = await readGlobalSettingsRaw()
+  const blob = new Blob([JSON.stringify({ ...raw, ...filtered }, null, 2)], { type: 'application/json' })
+  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(PATH, blob, { upsert: true, contentType: 'application/json' })
+  if (error) throw new Error(error.message)
+  _cacheMap.clear()
 }
 
 /** 讓外部可以主動清除快取（儲存設定後呼叫） */

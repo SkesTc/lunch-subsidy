@@ -115,11 +115,6 @@ export default function SettingsTab({ activeSchoolYear, handleInitFolders, initi
               className={inputCls} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">聯絡電話</label>
-            <input value={settings.admin_phone} onChange={e => set('admin_phone', e.target.value)}
-              className={inputCls} placeholder="(04)2562-6834 #730" />
-          </div>
-          <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-sm font-medium text-gray-700">系統管理 Email（通知密送）</label>
               <button type="button" onClick={() => set('bcc_enabled', settings.bcc_enabled === 'false' ? 'true' : 'false')}
