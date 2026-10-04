@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Spinner, BlockSpinner } from '@/components/Spinner'
+import { NOTIFY_SCENARIOS, NOTIFY_VARIABLES, getScenario, parseSavedTemplates, resolveTemplate, type NotifyScenarioId } from '@/lib/notifyTemplates'
 
 interface Settings {
   notify_subject: string; notify_body: string
@@ -56,6 +57,29 @@ export default function NotifyTab({ isSuperAdmin }: { isSuperAdmin?: boolean }) 
     setSettings(prev => prev ? { ...prev, [k]: v } : prev)
   }
 
+  const [tplScenario, setTplScenario] = useState<NotifyScenarioId>('expense')
+
+  // 情境範本：自訂寫回 notify_subject / notify_body，其餘存於 notify_templates（JSON）
+  function setTemplate(field: 'subject' | 'body', value: string) {
+    if (!settings) return
+    if (tplScenario === 'custom') { set(field === 'subject' ? 'notify_subject' : 'notify_body', value); return }
+    const all = parseSavedTemplates(settings.notify_templates)
+    const current = resolveTemplate(tplScenario, settings)
+    set('notify_templates', JSON.stringify({ ...all, [tplScenario]: { ...current, [field]: value } }))
+  }
+
+  function resetTemplate() {
+    if (!settings) return
+    const defaults = getScenario(tplScenario).defaults
+    if (tplScenario === 'custom') {
+      setSettings(prev => prev ? { ...prev, notify_subject: defaults.subject, notify_body: defaults.body } : prev)
+      return
+    }
+    const all = parseSavedTemplates(settings.notify_templates)
+    delete all[tplScenario]
+    set('notify_templates', JSON.stringify(all))
+  }
+
   if (loading) return <BlockSpinner />
   if (!settings) return <div className="text-center py-8 text-red-400">讀取設定失敗，請重新整理</div>
 
@@ -94,18 +118,40 @@ export default function NotifyTab({ isSuperAdmin }: { isSuperAdmin?: boolean }) 
         </div>
       </div>
 
-      {/* 催收通知 */}
+      {/* 催收通知（依情境） */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-        <h2 className="font-semibold text-gray-800 border-b pb-2">催收通知</h2>
+        <div className="border-b pb-2">
+          <h2 className="font-semibold text-gray-800">催收通知</h2>
+          <p className="text-xs text-gray-500 mt-1">依催收情境分別設定範本；在總覽頁寄送催收通知時，會依勾選學校的狀況自動帶入對應範本。</p>
+        </div>
+        <div className="flex flex-wrap gap-2" role="tablist">
+          {NOTIFY_SCENARIOS.map(sc => (
+            <button key={sc.id} role="tab" aria-selected={tplScenario === sc.id} onClick={() => setTplScenario(sc.id)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium cursor-pointer border ${tplScenario === sc.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+              {sc.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500">適用對象：{getScenario(tplScenario).target}</p>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">信件主旨</label>
-          <input value={settings.notify_subject} onChange={e => set('notify_subject', e.target.value)}
-            className={inputCls} placeholder="【核銷系統】請儘速完成資料上傳" />
+          <label htmlFor="tpl-subject" className="block text-sm font-medium text-gray-700 mb-1">信件主旨</label>
+          <input id="tpl-subject" value={resolveTemplate(tplScenario, settings).subject} onChange={e => setTemplate('subject', e.target.value)} className={inputCls} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">信件內容</label>
-          <textarea value={settings.notify_body} onChange={e => set('notify_body', e.target.value)}
-            rows={6} className={`${inputCls} resize-none`} />
+          <label htmlFor="tpl-body" className="block text-sm font-medium text-gray-700 mb-1">信件內容</label>
+          <textarea id="tpl-body" value={resolveTemplate(tplScenario, settings).body} onChange={e => setTemplate('body', e.target.value)}
+            rows={9} className={`${inputCls} resize-y`} />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button onClick={resetTemplate} className="text-xs text-gray-500 hover:text-gray-800 underline cursor-pointer">還原此情境的系統預設內容</button>
+          <details className="text-xs text-gray-500 w-full">
+            <summary className="cursor-pointer select-none">催收通知可用變數</summary>
+            <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1 mt-2">
+              {NOTIFY_VARIABLES.map(([v, desc, ex]) => (
+                <div key={v} className="flex gap-2"><code className="text-blue-700 bg-blue-50 px-1 rounded shrink-0">{v}</code><span>{desc}<span className="text-gray-400 ml-1">例：{ex}</span></span></div>
+              ))}
+            </div>
+          </details>
         </div>
       </div>
 

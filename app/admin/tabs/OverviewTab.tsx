@@ -4,6 +4,7 @@ import { SearchIcon, FolderIcon, DownloadIcon, ChevronDownIcon, MailIcon } from 
 import { formatAmount } from '@/lib/utils'
 import type { School, AmountRow, BankRow, SettleRow, ProfileRow, ContactInfo, Plan, PlanAmount } from '../types'
 import { BatchPrintModal } from '../components/BatchPrintModal'
+import { NotifyModal } from '../components/NotifyModal'
 
 // ── 總覽頁籤 ───────────────────────────────────────────────
 type StatusFilter = 'all' | 'done' | 'undone'
@@ -56,16 +57,6 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
   // notify modal
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [notifyToast, setNotifyToast] = useState('')
-  const [notifySubject, setNotifySubject] = useState('【核銷系統】請儘速完成資料上傳')
-  const [notifyMsg, setNotifyMsg] = useState(`{schoolName} 您好，
-
-提醒您尚有核銷資料尚未完成上傳，請儘速登入系統完成作業。
-
-如有問題請聯絡承辦人員：{adminName}　{adminPhone}
-
-臺中市政府教育局`)
-  const [notifying, setNotifying] = useState(false)
-  const [notifyResult, setNotifyResult] = useState('')
 
   // settlement/upload change requests
   interface SettleChangeRequest {
@@ -95,8 +86,6 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
       if (d.drive_folder_id) setDriveFolderId(d.drive_folder_id)
       if (d.host_school) setHostSchool(d.host_school)
       if (d.plan_name) setPlanName(d.plan_name)
-      if (d.notify_subject) setNotifySubject(d.notify_subject)
-      if (d.notify_body) setNotifyMsg(d.notify_body)
     }).catch(() => {})
     fetch('/api/admin/drive-folder').then(r => r.json()).then(d => {
       if (d.url) setDriveFolderUrl(d.url)
@@ -307,26 +296,6 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
     }
   }
 
-  async function handleSendNotify() {
-    setNotifying(true)
-    setNotifyResult('')
-    const schoolIds = Array.from(selected)
-    const res = await fetch('/api/admin/notify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ schoolIds, subject: notifySubject, message: notifyMsg }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      setNotifyOpen(false)
-      setNotifyResult('')
-      setNotifyToast(`✅ 催收通知已寄出 ${data.successCount} / ${data.total} 封`)
-      setTimeout(() => setNotifyToast(''), 4000)
-    } else {
-      setNotifyResult(`失敗：${data.error}`)
-    }
-    setNotifying(false)
-  }
 
   function fileUrl(path: string) {
     if (!path) return '#'
@@ -737,35 +706,23 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
 
       {/* 催收通知 Modal */}
       {notifyOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg space-y-4">
-            <h2 className="text-lg font-bold text-gray-800">發送催收通知</h2>
-            <p className="text-sm text-gray-500">將寄送給已選擇的 <span className="font-semibold text-gray-700">{selected.size}</span> 所學校的綁定帳號</p>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">主旨</label>
-              <input value={notifySubject} onChange={e => setNotifySubject(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">內容（可使用 {'{schoolName}'} {'{contactName}'} {'{contactTitle}'} {'{adminName}'} {'{adminPhone}'}）</label>
-              <textarea value={notifyMsg} onChange={e => setNotifyMsg(e.target.value)} rows={8}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
-            </div>
-            {notifyResult && (
-              <p className={`text-sm font-medium ${notifyResult.startsWith('成功') ? 'text-green-600' : 'text-red-600'}`}>{notifyResult}</p>
-            )}
-            <div className="flex gap-3">
-              <button onClick={() => { setNotifyOpen(false); setNotifyResult('') }}
-                className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm hover:bg-gray-50 cursor-pointer">
-                關閉
-              </button>
-              <button onClick={handleSendNotify} disabled={notifying}
-                className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-medium cursor-pointer">
-                {notifying ? '寄送中...' : '確認寄送'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <NotifyModal
+          targets={allSemSchools.filter(x => selected.has(x.school.id)).map(x => ({
+            id: x.school.id, code: x.school.code, name: x.school.name, bound: x.boundEmails.length > 0,
+            hasExpense: (x.settle?.total_expense || 0) > 0, scanUploaded: !!x.settle?.scan_file_path,
+            remitUploaded: !!x.settle?.remittance_file_path, repayAmount: x.settle?.repay_amount || 0,
+          }))}
+          semester={effectiveSem}
+          planId={selectedPlan?.id ?? null}
+          remitApplies={selectedPlan ? selectedPlan.require_repay && !(selectedPlan.deduct_s1_repay && effectiveSem === 1) : effectiveSem === 2}
+          onClose={() => setNotifyOpen(false)}
+          onNarrow={ids => setSelected(new Set(ids))}
+          onSent={(ok, total) => {
+            setNotifyOpen(false)
+            setNotifyToast(`✅ 催收通知已寄出 ${ok} / ${total} 封`)
+            setTimeout(() => setNotifyToast(''), 4000)
+          }}
+        />
       )}
 
       {/* Toast 通知 */}
