@@ -40,9 +40,41 @@ export default function AdminDashboardClient({
   const initialSchoolsSubTab = qTab === 'schools' && (qSub === 'notify' || qSub === 'plans' || qSub === 'amounts') ? qSub : undefined
   const initialTemplateKey = searchParams.get('scenario') || undefined
   const [pendingCount, setPendingCount] = useState(0)
-  const [overviewKey, setOverviewKey] = useState(0)
   const [tabKeys, setTabKeys] = useState<Record<string, number>>({ review: 0, accounts: 0, schools: 0, school_mgmt: 0, settings: 0 })
   const [refreshing, setRefreshing] = useState(false)
+  // 已開啟過的頁籤保留在背景（切換時只隱藏），切回時以 refreshToken 通知該頁在背景悄悄更新資料
+  const [visited, setVisited] = useState<Set<Tab>>(() => new Set([tab]))
+  const [refreshTokens, setRefreshTokens] = useState<Record<string, number>>({})
+
+  function switchTab(next: Tab) {
+    if (next === tab) return
+    setTab(next)
+    if (visited.has(next)) {
+      setRefreshTokens(r => ({ ...r, [next]: (r[next] || 0) + 1 }))
+      if (next === 'overview') refreshOverviewData()
+    } else {
+      setVisited(v => new Set(v).add(next))
+    }
+  }
+
+  // 總覽資料由外框提供：背景更新結算與計畫金額，不重新建立總覽頁（保留篩選與勾選）
+  function refreshOverviewData() {
+    return Promise.all([
+      fetch('/api/admin/settlements').then(r => r.json()).then(d => { if (Array.isArray(d)) setLiveSettlements(d) }).catch(() => {}),
+      fetch(`/api/admin/plan-amounts?school_year=${activeSchoolYear}`).then(r => r.json()).then(d => { if (Array.isArray(d)) setLivePlanAmounts(d) }).catch(() => {}),
+    ])
+  }
+
+  // 瀏覽器空閒時預先下載各頁籤程式碼，第一次切換不必等待
+  useEffect(() => {
+    const prefetch = () => {
+      import('./tabs/SchoolsTab'); import('./tabs/SchoolMgmtTab'); import('./tabs/AccountsTab')
+      import('./tabs/SettingsTab'); import('./tabs/ZonesTab'); import('./tabs/PlansTab'); import('./tabs/NotifyTab')
+    }
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number }
+    if (w.requestIdleCallback) w.requestIdleCallback(prefetch)
+    else setTimeout(prefetch, 1500)
+  }, [])
   // 總覽的 settlements/planAmounts/plans 可在重新整理時重新取得
   const [liveSettlements, setLiveSettlements] = useState<SettleRow[]>(settlements)
   const [livePlanAmounts, setLivePlanAmounts] = useState<PlanAmount[]>(planAmounts)
@@ -106,7 +138,7 @@ export default function AdminDashboardClient({
           {((['overview', 'review', 'schools', 'accounts', 'school_mgmt'] as Tab[])
             .concat(isZoneAdmin ? ['zones' as Tab] : [])
             .concat(isSuperAdmin ? ['settings' as Tab] : [])).map(t => (
-            <button key={t} onClick={() => setTab(t)}
+            <button key={t} onClick={() => switchTab(t)}
               className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors flex items-center gap-1.5 ${tab === t ? (t === 'review' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white') : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`}>
               {TAB_LABELS[t]}
               {t === 'review' && pendingCount > 0 && (
@@ -125,17 +157,10 @@ export default function AdminDashboardClient({
           <button
             onClick={async () => {
               setRefreshing(true)
-              if (tab === 'overview') {
-                // 重新取 settlements 和 planAmounts，確保上傳檔案和實支金額是最新的
-                await Promise.all([
-                  fetch('/api/admin/settlements').then(r => r.json()).then(d => {
-                    if (Array.isArray(d)) setLiveSettlements(d)
-                  }).catch(() => {}),
-                  fetch(`/api/admin/plan-amounts?school_year=${activeSchoolYear}`).then(r => r.json()).then(d => {
-                    if (Array.isArray(d)) setLivePlanAmounts(d)
-                  }).catch(() => {}),
-                ])
-                setOverviewKey(k => k + 1)
+              // 支援背景更新的頁籤：保留畫面與篩選，只重抓資料；其餘頁籤重新建立
+              if (tab === 'overview') await refreshOverviewData()
+              if (['overview', 'review', 'accounts', 'schools', 'school_mgmt'].includes(tab)) {
+                setRefreshTokens(r => ({ ...r, [tab]: (r[tab] || 0) + 1 }))
               } else {
                 setTabKeys(prev => ({ ...prev, [tab]: (prev[tab] || 0) + 1 }))
               }
@@ -151,33 +176,44 @@ export default function AdminDashboardClient({
         </div>
       </div>
 
-      {tab === 'overview' && (
-        <OverviewTab key={overviewKey} schools={schools} amounts={amounts} banks={banks} settlements={liveSettlements} profiles={profiles} contacts={contacts} activeSchoolYear={activeSchoolYear} plans={livePlans} planAmounts={livePlanAmounts} driveFolderId={driveRootFolderId} setDriveFolderId={setDriveRootFolderId} driveFolderUrl={driveRootFolderUrl} setDriveFolderUrl={setDriveRootFolderUrl} />
+      {visited.has('overview') && (
+        <div hidden={tab !== 'overview'}>
+          <OverviewTab refreshToken={refreshTokens.overview} schools={schools} amounts={amounts} banks={banks} settlements={liveSettlements} profiles={profiles} contacts={contacts} activeSchoolYear={activeSchoolYear} plans={livePlans} planAmounts={livePlanAmounts} driveFolderId={driveRootFolderId} setDriveFolderId={setDriveRootFolderId} driveFolderUrl={driveRootFolderUrl} setDriveFolderUrl={setDriveRootFolderUrl} />
+        </div>
       )}
-      {tab === 'review' && (
-        <ReviewTab key={tabKeys.review} activeSchoolYear={activeSchoolYear} schools={schools} profiles={profiles} contacts={contacts} plans={livePlans}
-          onReviewDone={() => {
-            setPendingCount(c => Math.max(0, c - 1))
-            Promise.all([
-              fetch('/api/admin/settlements').then(r => r.json()).then(d => { if (Array.isArray(d)) setLiveSettlements(d) }).catch(() => {}),
-              fetch(`/api/admin/plan-amounts?school_year=${activeSchoolYear}`).then(r => r.json()).then(d => { if (Array.isArray(d)) setLivePlanAmounts(d) }).catch(() => {}),
-            ]).then(() => setOverviewKey(k => k + 1))
-          }} />
+      {visited.has('review') && (
+        <div hidden={tab !== 'review'}>
+          <ReviewTab key={tabKeys.review} refreshToken={refreshTokens.review} activeSchoolYear={activeSchoolYear} schools={schools} profiles={profiles} contacts={contacts} plans={livePlans}
+            onReviewDone={() => {
+              setPendingCount(c => Math.max(0, c - 1))
+              refreshOverviewData()
+            }} />
+        </div>
       )}
-      {tab === 'accounts' && (
-        <AccountsTab key={tabKeys.accounts} currentUserEmail={currentUserEmail} isSuperAdmin={isSuperAdmin} />
+      {visited.has('accounts') && (
+        <div hidden={tab !== 'accounts'}>
+          <AccountsTab key={tabKeys.accounts} refreshToken={refreshTokens.accounts} currentUserEmail={currentUserEmail} isSuperAdmin={isSuperAdmin} />
+        </div>
       )}
-      {tab === 'schools' && (
-        <SchoolsTab key={tabKeys.schools} activeSchoolYear={activeSchoolYear} plans={livePlans} isSuperAdmin={isSuperAdmin} onPlansChanged={reloadPlans} initialSubTab={initialSchoolsSubTab} initialTemplateKey={initialTemplateKey} />
+      {visited.has('schools') && (
+        <div hidden={tab !== 'schools'}>
+          <SchoolsTab key={tabKeys.schools} refreshToken={refreshTokens.schools} activeSchoolYear={activeSchoolYear} plans={livePlans} isSuperAdmin={isSuperAdmin} onPlansChanged={reloadPlans} initialSubTab={initialSchoolsSubTab} initialTemplateKey={initialTemplateKey} />
+        </div>
       )}
-      {tab === 'school_mgmt' && (
-        <SchoolMgmtTab key={tabKeys.school_mgmt} activeSchoolYear={activeSchoolYear} />
+      {visited.has('school_mgmt') && (
+        <div hidden={tab !== 'school_mgmt'}>
+          <SchoolMgmtTab key={tabKeys.school_mgmt} refreshToken={refreshTokens.school_mgmt} activeSchoolYear={activeSchoolYear} />
+        </div>
       )}
-      {tab === 'settings' && isSuperAdmin && (
-        <SettingsTab key={tabKeys.settings} activeSchoolYear={activeSchoolYear} handleInitFolders={handleInitFolders} initingFolders={rootInitingFolders} />
+      {visited.has('settings') && isSuperAdmin && (
+        <div hidden={tab !== 'settings'}>
+          <SettingsTab key={tabKeys.settings} activeSchoolYear={activeSchoolYear} handleInitFolders={handleInitFolders} initingFolders={rootInitingFolders} />
+        </div>
       )}
-      {tab === 'zones' && isZoneAdmin && (
-        <ZonesTab isSuperAdmin={isSuperAdmin} />
+      {visited.has('zones') && isZoneAdmin && (
+        <div hidden={tab !== 'zones'}>
+          <ZonesTab isSuperAdmin={isSuperAdmin} />
+        </div>
       )}
 
       {/* 模擬身分 Modal */}

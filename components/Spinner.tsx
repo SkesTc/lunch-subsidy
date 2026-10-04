@@ -6,15 +6,24 @@ export function Spinner({ size = 'sm', className = '' }: { size?: 'xs' | 'sm' | 
   )
 }
 
-/** 區塊讀取中：骨架畫面（灰色條狀佔位），比轉圈更能預期內容位置 */
+/** 區塊讀取中：白色卡片骨架（標題列＋表格列），在淺灰底頁面上也清楚可見 */
 export function BlockSpinner({ text = '載入中...' }: { text?: string }) {
   return (
-    <div role="status" className="py-4 space-y-3 animate-pulse">
+    <div role="status" className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
       <span className="sr-only">{text}</span>
-      <div className="h-4 w-1/3 rounded bg-gray-200" />
-      <div className="h-10 rounded-lg bg-gray-100" />
-      <div className="h-10 rounded-lg bg-gray-100" />
-      <div className="h-10 w-5/6 rounded-lg bg-gray-100" />
+      <div className="flex items-center justify-between gap-4 animate-pulse">
+        <div className="h-4 w-40 rounded bg-gray-200" />
+        <div className="h-8 w-24 rounded-lg bg-gray-100" />
+      </div>
+      <div className="space-y-3 animate-pulse">
+        {[0, 1, 2, 3, 4].map(i => (
+          <div key={i} className="flex items-center gap-4">
+            <div className="h-4 w-10 rounded bg-gray-100" />
+            <div className="h-4 flex-1 rounded bg-gray-200/70" />
+            <div className="h-4 w-24 rounded bg-gray-100" />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

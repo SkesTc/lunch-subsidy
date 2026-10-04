@@ -13,10 +13,11 @@ import { PLAN_STATUS_LABELS, planStatusOf } from '@/lib/planStatus'
 // ── 總覽頁籤 ───────────────────────────────────────────────
 type StatusFilter = 'all' | 'done' | 'undone'
 
-export default function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSettlements, profiles, contacts, activeSchoolYear, plans, planAmounts, driveFolderId, setDriveFolderId, driveFolderUrl, setDriveFolderUrl }: {
+export default function OverviewTab({ schools, amounts: initAmounts, banks, settlements: initSettlements, profiles, contacts, activeSchoolYear, plans, planAmounts, driveFolderId, setDriveFolderId, driveFolderUrl, setDriveFolderUrl, refreshToken }: {
   schools: School[]; amounts: AmountRow[]; banks: BankRow[]; settlements: SettleRow[]; profiles: ProfileRow[]; contacts: Record<string, ContactInfo>; activeSchoolYear: string
   plans: Plan[]; planAmounts: PlanAmount[]
   driveFolderId: string; setDriveFolderId: (v: string) => void; driveFolderUrl: string; setDriveFolderUrl: (v: string) => void
+  refreshToken?: number
 }) {
   const dialog = useDialog()
   // 計畫頁籤：有計畫時用計畫切換，否則保持學期切換
@@ -49,6 +50,12 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
   const [hostSchool, setHostSchool] = useState('')
   const [planName, setPlanName] = useState('')
   const [settlements, setSettlements] = useState<SettleRow[]>(initSettlements)
+  // 外框在背景更新結算資料時同步過來（不重建頁面，保留篩選與勾選）
+  const [prevInitSettlements, setPrevInitSettlements] = useState(initSettlements)
+  if (initSettlements !== prevInitSettlements) {
+    setPrevInitSettlements(initSettlements)
+    setSettlements(initSettlements)
+  }
   const [amounts] = useState<AmountRow[]>(initAmounts)
   // account change requests
   interface ChangeRequest { school_id: number; school_name: string; school_code: number; school_year: string; status: string; new_info: Record<string, string>; file_id: string; submitted_at: string; admin_note: string }
@@ -99,6 +106,13 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
       if (Array.isArray(d)) setSettleRequests(d)
     }).catch(() => {})
   }, [])
+
+  // 切回總覽或按重新整理時，背景更新待審申請（結算資料由外框更新）
+  useEffect(() => {
+    if (!refreshToken) return
+    fetch('/api/admin/account-changes').then(r => r.json()).then(d => { if (Array.isArray(d)) setChangeRequests(d) }).catch(() => {})
+    fetch('/api/admin/change-requests').then(r => r.json()).then(d => { if (Array.isArray(d)) setSettleRequests(d) }).catch(() => {})
+  }, [refreshToken])
 
   useEffect(() => {
     if (!showExportMenu) return

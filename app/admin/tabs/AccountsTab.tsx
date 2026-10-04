@@ -26,9 +26,11 @@ const ROLE_LABELS: Record<string, string> = {
 export default function AccountsTab({
   currentUserEmail,
   isSuperAdmin,
+  refreshToken,
 }: {
   currentUserEmail: string
   isSuperAdmin: boolean
+  refreshToken?: number
 }) {
   const dialog = useDialog()
   const [accounts, setAccounts] = useState<AccountRow[]>([])
@@ -59,8 +61,8 @@ export default function AccountsTab({
 
   const [subTab, setSubTab] = useState<'schools' | 'admins' | 'logs' | 'oplogs'>('schools')
 
-  function loadAccounts() {
-    setLoading(true)
+  function loadAccounts(silent = false) {
+    if (!silent) setLoading(true)
     fetch('/api/admin/accounts').then(r => r.json()).then(data => {
       setAccounts(Array.isArray(data) ? data : [])
       setLoading(false)
@@ -84,6 +86,13 @@ export default function AccountsTab({
     loadLogs()
     fetch('/api/admin/zones').then(r => r.json()).then(d => setZones(Array.isArray(d) ? d : []))
   }, [])
+
+  // 從其他頁籤切回或按重新整理時，在背景更新資料（不切換到載入畫面）
+  useEffect(() => {
+    if (!refreshToken) return
+    const t = setTimeout(() => loadAccounts(true), 0)
+    return () => clearTimeout(t)
+  }, [refreshToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAddAdmin() {
     if (!newAdmin.email) return

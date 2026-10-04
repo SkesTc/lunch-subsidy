@@ -7,7 +7,7 @@ interface BankRow { school_id: number; semester: number; bank_name: string | nul
 interface BankEditState { schoolId: number; schoolName: string; semester: number; bank_name: string; branch_name: string; bank_code: string; account_name: string; account_number: string }
 interface Zone { id: number; name: string }
 
-export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: string }) {
+export default function SchoolMgmtTab({ activeSchoolYear, refreshToken }: { activeSchoolYear: string; refreshToken?: number }) {
   const [subTab, setSubTab] = useState<'list' | 'bank'>('list')
   const [schools, setSchools] = useState<SchoolFull[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,8 +42,8 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
   const [bankSaving, setBankSaving] = useState(false)
   const [bankError, setBankError] = useState('')
 
-  function load() {
-    setLoading(true)
+  function load(silent = false) {
+    if (!silent) setLoading(true)
     Promise.all([
       fetch('/api/admin/schools-manage').then(r => r.json()),
       fetch('/api/admin/bank-edit').then(r => r.json()),
@@ -57,6 +57,13 @@ export default function SchoolMgmtTab({ activeSchoolYear }: { activeSchoolYear: 
   }
 
   useEffect(() => { load() }, [])
+
+  // 從其他頁籤切回或按重新整理時，在背景更新資料（不切換到載入畫面）
+  useEffect(() => {
+    if (!refreshToken) return
+    const t = setTimeout(() => load(true), 0)
+    return () => clearTimeout(t)
+  }, [refreshToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function getBank(schoolId: number, semester: number) {
     return banks.find(b => b.school_id === schoolId && b.semester === semester)

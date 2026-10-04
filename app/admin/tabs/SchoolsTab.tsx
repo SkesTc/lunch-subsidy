@@ -7,7 +7,7 @@ import type { Plan } from '../types'
 const PlansTab = dynamic(() => import('./PlansTab'), { loading: () => <BlockSpinner /> })
 const NotifyTab = dynamic(() => import('./NotifyTab'), { loading: () => <BlockSpinner /> })
 
-export default function SchoolsTab({ activeSchoolYear, plans, isSuperAdmin, onPlansChanged, initialSubTab, initialTemplateKey }: { activeSchoolYear: string; plans: Plan[]; isSuperAdmin: boolean; onPlansChanged?: () => void; initialSubTab?: 'amounts' | 'plans' | 'notify'; initialTemplateKey?: string }) {
+export default function SchoolsTab({ activeSchoolYear, plans, isSuperAdmin, onPlansChanged, initialSubTab, initialTemplateKey, refreshToken }: { activeSchoolYear: string; plans: Plan[]; isSuperAdmin: boolean; onPlansChanged?: () => void; initialSubTab?: 'amounts' | 'plans' | 'notify'; initialTemplateKey?: string; refreshToken?: number }) {
   interface SchoolFull { id: number; code: number; district: string; name: string; is_active: boolean; zone_id?: number | null }
   interface ZoneOption { id: number; name: string }
   const [schools, setSchools] = useState<SchoolFull[]>([])
@@ -33,8 +33,8 @@ export default function SchoolsTab({ activeSchoolYear, plans, isSuperAdmin, onPl
   const [zones, setZones] = useState<ZoneOption[]>([])
   const [zoneFilter, setZoneFilter] = useState<number | null>(null)
 
-  function load() {
-    setLoading(true)
+  function load(silent = false) {
+    if (!silent) setLoading(true)
     const fetches: Promise<unknown>[] = [
       fetch('/api/admin/schools-manage').then(r => r.json()),
       fetch(`/api/admin/amounts?school_year=${activeSchoolYear}`).then(r => r.json()),
@@ -115,6 +115,13 @@ export default function SchoolsTab({ activeSchoolYear, plans, isSuperAdmin, onPl
     }
   }, [])
 
+  // 背景更新資料；編輯核定金額時跳過，避免蓋掉尚未儲存的數字
+  useEffect(() => {
+    if (!refreshToken || editingAmounts || editingPlanAmounts) return
+    const t = setTimeout(() => load(true), 0)
+    return () => clearTimeout(t)
+  }, [refreshToken]) // eslint-disable-line react-hooks/exhaustive-deps
+
   function getAmount(schoolId: number) {
     return amounts.find(a => a.school_id === schoolId)
   }
@@ -181,7 +188,7 @@ export default function SchoolsTab({ activeSchoolYear, plans, isSuperAdmin, onPl
       </div>
 
       {/* ── 核銷計畫 ── */}
-      {subTab === 'plans' && <PlansTab activeSchoolYear={activeSchoolYear} isSuperAdmin={isSuperAdmin} onPlansChanged={onPlansChanged} />}
+      {subTab === 'plans' && <PlansTab activeSchoolYear={activeSchoolYear} isSuperAdmin={isSuperAdmin} onPlansChanged={onPlansChanged} refreshToken={refreshToken} />}
 
       {/* ── 通知信範本 ── */}
       {subTab === 'notify' && <NotifyTab isSuperAdmin={isSuperAdmin} initialTemplateKey={initialTemplateKey} />}

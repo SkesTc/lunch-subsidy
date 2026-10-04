@@ -8,13 +8,14 @@ import type { School, ProfileRow, ContactInfo, Plan } from '../types'
 import { fileViewerUrl } from '../fileViewer'
 
 // ── 申請審核頁籤 ───────────────────────────────────────────
-export default function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onReviewDone }: {
+export default function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onReviewDone, refreshToken }: {
   activeSchoolYear: string
   schools: School[]
   profiles: ProfileRow[]
   contacts: Record<string, ContactInfo>
   plans: Plan[]
   onReviewDone: () => void
+  refreshToken?: number
 }) {
   const dialog = useDialog()
   interface ChangeRequest { school_id: number; school_name: string; school_code: number; school_year: string; status: string; new_info: Record<string, string>; file_id: string; submitted_at: string; admin_note: string; reviewed_at: string | null }
@@ -45,8 +46,8 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
     onConfirm: () => void
   } | null>(null)
 
-  function load() {
-    setLoading(true)
+  function load(silent = false) {
+    if (!silent) setLoading(true)
     Promise.all([
       fetch('/api/admin/account-changes').then(r => r.json()),
       fetch('/api/admin/change-requests').then(r => r.json()),
@@ -57,6 +58,13 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
     })
   }
   useEffect(() => { load() }, [])
+
+  // 從其他頁籤切回或按重新整理時，在背景更新資料（不切換到載入畫面）
+  useEffect(() => {
+    if (!refreshToken) return
+    const t = setTimeout(() => load(true), 0)
+    return () => clearTimeout(t)
+  }, [refreshToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleAccountReview(req: ChangeRequest, action: 'approve' | 'reject') {
     const key = `${req.school_id}_${req.school_year}`
@@ -178,7 +186,7 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
           <option value="remittance_reupload">重新上傳送款憑單</option>
           <option value="account">帳戶變更申請</option>
         </select>
-        <button onClick={load} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 cursor-pointer">↻ 重新整理</button>
+        <button onClick={() => load(true)} className="text-sm text-gray-500 border border-gray-300 px-3 py-1 rounded-lg hover:bg-gray-50 cursor-pointer">↻ 重新整理</button>
       </div>
 
       {/* 計畫篩選（有計畫時顯示） */}

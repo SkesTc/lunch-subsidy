@@ -19,7 +19,7 @@ const emptyPlan = (): Omit<Plan, 'id' | 'school_year' | 'zone_id'> => ({
   sort_order: 0, is_active: true, deadline: '', is_open: false, open_note: '', zone_ids: [], status: 'not_open', semester_status: {},
 })
 
-export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChanged }: { activeSchoolYear: string; isSuperAdmin: boolean; onPlansChanged?: () => void }) {
+export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChanged, refreshToken }: { activeSchoolYear: string; isSuperAdmin: boolean; onPlansChanged?: () => void; refreshToken?: number }) {
   const dialog = useDialog()
   const [plans, setPlans] = useState<Plan[]>([])
   const [zones, setZones] = useState<Zone[]>([])
@@ -36,11 +36,18 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
   const [dropTarget, setDropTarget] = useState<{ id: string; after: boolean } | null>(null)
   const [orderMsg, setOrderMsg] = useState('')
 
-  function load() {
-    setLoading(true)
+  function load(silent = false) {
+    if (!silent) setLoading(true)
     fetch(`/api/admin/plans?school_year=${activeSchoolYear}`)
       .then(r => r.json()).then(d => { setPlans(Array.isArray(d) ? d : []); setLoading(false) })
   }
+
+  // 從其他頁籤切回或按重新整理時，在背景更新資料（不切換到載入畫面）
+  useEffect(() => {
+    if (!refreshToken) return
+    const t = setTimeout(() => load(true), 0)
+    return () => clearTimeout(t)
+  }, [refreshToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { load() }, [activeSchoolYear])
 
