@@ -7,6 +7,7 @@ import Navbar from '@/components/Navbar'
 import ImpersonateBanner from '@/components/ImpersonateBanner'
 import Link from 'next/link'
 import { StatusChip } from '@/components/StatusChip'
+import { planStatusOf } from '@/lib/planStatus'
 import { CheckIcon, ChevronRightIcon, ClockIcon, PencilIcon } from '@/components/icons'
 import { formatAmount } from '@/lib/utils'
 import RebindButton from '@/components/RebindButton'
@@ -171,7 +172,7 @@ export default async function SchoolDashboard() {
           {hasPlans ? (
             /* 計畫模式：每個計畫一張小卡（全學年計畫展開成兩張） */
             <div className="space-y-3">
-              {visiblePlans.map((plan, i) => {
+              {[...visiblePlans].sort((a, b) => Number(planStatusOf(a) === 'closed') - Number(planStatusOf(b) === 'closed')).map((plan, i) => {
                 const isFullYear = plan.semester == null
                 const color = colors[i % colors.length]
                 const colorMap: Record<Color, string> = {
@@ -299,7 +300,8 @@ export default async function SchoolDashboard() {
               const sems = isFullYear ? [1, 2] : [plan.semester ?? 1]
               return sems.map(sem => {
                 const settle = planSettleMap[`${plan.id}_${sem}`] || (isFullYear ? null : planSettleMap[plan.id])
-                const open = plan.is_open ?? false
+                const status = planStatusOf(plan)
+                const open = status === 'open'
                 const deadlineText = plan.deadline || plan.open_note || (open ? '開放中' : '尚未開放')
                 const label = isFullYear ? `${plan.label}・第${sem}學期` : plan.label
                 const steps = [
@@ -330,7 +332,9 @@ export default async function SchoolDashboard() {
                     label={label}
                     color={(['blue', 'sky', 'indigo'] as const)[i % 3]}
                     deadline={deadlineText}
-                    readOnly={!open}
+                    disabled={status === 'not_open'}
+                    readOnly={status === 'closed'}
+                    headerNote={status === 'not_open' ? (plan.open_note || '尚未開放') : status === 'closed' ? '已結案・僅供檢視' : undefined}
                     steps={steps}
                   />
                 )
@@ -452,12 +456,13 @@ function AmountRow({ label, amount, color, bold }: {
   )
 }
 
-function PeriodCard({ label, color, deadline, disabled, readOnly, steps }: {
+function PeriodCard({ label, color, deadline, disabled, readOnly, headerNote, steps }: {
   label: string
   color: 'blue' | 'sky' | 'indigo'
   deadline: string
   disabled?: boolean
-  readOnly?: boolean   // 未開放送件：仍顯示步驟供查看，但不可修改
+  readOnly?: boolean   // 未開放送件或已結案：仍顯示步驟供查看，但不可修改
+  headerNote?: string  // 覆寫標題列右側文字
   steps: { label: string; done: boolean; pending?: boolean; href: string; desc: string; optional?: boolean }[]
 }) {
   const headerColor = disabled ? 'bg-gray-400' : readOnly ? 'bg-slate-500' : {
@@ -471,7 +476,7 @@ function PeriodCard({ label, color, deadline, disabled, readOnly, steps }: {
     <div className={disabled ? 'opacity-60' : ''}>
       <div className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 ${headerColor} text-white text-sm font-bold px-4 py-2 rounded-t-xl`}>
         <span>{label}</span>
-        <span className="text-xs font-normal opacity-90">{disabled ? '暫未開放' : readOnly ? '目前未開放送件・僅供檢視' : deadline}</span>
+        <span className="text-xs font-normal opacity-90">{headerNote ?? (disabled ? '暫未開放' : readOnly ? '目前未開放送件・僅供檢視' : deadline)}</span>
       </div>
       <div className="bg-white rounded-b-2xl shadow-sm border border-gray-100 p-4 space-y-2">
         {disabled ? (

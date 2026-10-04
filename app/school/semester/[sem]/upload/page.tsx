@@ -1,5 +1,6 @@
 'use client'
 import { PlanClosedNotice } from '@/components/PlanClosedNotice'
+import type { PlanStatus } from '@/lib/planStatus'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { StatusChip } from '@/components/StatusChip'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -28,6 +29,7 @@ export default function UploadPage() {
   // pending states
   const [pendingUpload, setPendingUpload] = useState(false)   // scan_upload 待審核
   const [planOpen, setPlanOpen] = useState(true)
+  const [planStatus, setPlanStatus] = useState<PlanStatus>('open')
   const [pendingReupload, setPendingReupload] = useState(false) // scan_reupload 待審核
   const [amountFilled, setAmountFilled] = useState(false) // 實支金額是否已填
 
@@ -41,8 +43,9 @@ export default function UploadPage() {
 
   useEffect(() => {
     const statusUrl = planId ? `/api/school/status?semester=${semester}&plan_id=${planId}` : `/api/school/status?semester=${semester}`
-    fetch(statusUrl).then(r => r.json()).then(({ settlement, pendingRequests, planOpen: open }) => {
+    fetch(statusUrl).then(r => r.json()).then(({ settlement, pendingRequests, planOpen: open, planStatus: ps }) => {
       setPlanOpen(open !== false)
+      setPlanStatus(ps || (open === false ? 'not_open' : 'open'))
       if (settlement?.scan_file_path) setExistingPath(settlement.scan_file_path)
       // 實支金額已填（大於 0）才允許上傳
       if (settlement?.business_expense != null && Number(settlement.business_expense) > 0) setAmountFilled(true)
@@ -110,7 +113,7 @@ export default function UploadPage() {
             <p className="text-sm text-gray-500 mt-1">請上傳列印逐級核章後的掃描檔（PDF / JPG / PNG）</p>
           </div>
 
-          {!planOpen && <PlanClosedNotice />}
+          {!planOpen && <PlanClosedNotice status={planStatus} />}
 
           {/* 上傳成功，等待審核 */}
           {done ? (

@@ -3,7 +3,7 @@ import { getEffectiveSchoolId } from '@/lib/impersonate'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getGlobalSettings } from '@/lib/settings'
 import { NextResponse } from 'next/server'
-import { isSubmissionOpen } from '@/lib/planOpen'
+import { getSubmissionStatus } from '@/lib/planOpen'
 
 /**
  * 合併 settlement 頁面需要的所有資料（原本 4 個 API 呼叫 → 1 個）
@@ -56,6 +56,8 @@ export async function GET(req: Request) {
     zoneName = zone?.name || ''
   }
 
+  const planStatus = await getSubmissionStatus(planId, semester)
+
   return NextResponse.json({
     school: school || null,
     zoneName,
@@ -67,6 +69,7 @@ export async function GET(req: Request) {
     planLabel: planInfo ? (planInfo.semester == null ? `${planInfo.label}・第${semester}學期` : planInfo.label) : null,
     planAmount: planAmount,
     sem1Repay: shouldDeduct ? sem1Repay : null,
-    planOpen: await isSubmissionOpen(planId, semester),
+    planOpen: planStatus === 'open',
+    planStatus,
   })
 }

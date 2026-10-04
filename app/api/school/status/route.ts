@@ -3,7 +3,7 @@ import { getEffectiveSchoolId } from '@/lib/impersonate'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getActiveSchoolYear } from '@/lib/settings'
 import { NextResponse } from 'next/server'
-import { isSubmissionOpen } from '@/lib/planOpen'
+import { getSubmissionStatus } from '@/lib/planOpen'
 
 /**
  * 單一請求回傳學校指定學期的結算資料 + 待審核申請
@@ -32,11 +32,12 @@ export async function GET(req: Request) {
     : supabaseAdmin.from('change_requests').select('id, semester, request_type, status, pending_file_path, reason, created_at')
         .eq('school_id', schoolId).eq('school_year', schoolYear).eq('semester', semester).order('created_at', { ascending: false })
 
-  const [{ data: settlement }, { data: pendingRequests }, planOpen] = await Promise.all([settlementQuery, changeQuery, isSubmissionOpen(planId, semester)])
+  const [{ data: settlement }, { data: pendingRequests }, planStatus] = await Promise.all([settlementQuery, changeQuery, getSubmissionStatus(planId, semester)])
 
   return NextResponse.json({
     settlement: settlement || null,
     pendingRequests: pendingRequests || [],
-    planOpen,
+    planOpen: planStatus === 'open',
+    planStatus,
   })
 }

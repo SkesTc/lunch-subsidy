@@ -8,6 +8,7 @@ import type { School, AmountRow, BankRow, SettleRow, ProfileRow, ContactInfo, Pl
 import { BatchPrintModal } from '../components/BatchPrintModal'
 import { NotifyModal } from '../components/NotifyModal'
 import { fileViewerUrl } from '../fileViewer'
+import { PLAN_STATUS_LABELS, planStatusOf } from '@/lib/planStatus'
 
 // ── 總覽頁籤 ───────────────────────────────────────────────
 type StatusFilter = 'all' | 'done' | 'undone'
@@ -335,7 +336,14 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
             return (
               <button key={plan.id} onClick={() => { setSelectedPlanId(plan.id); setSelected(new Set()) }}
                 className={`rounded-xl p-3 text-left border transition-all cursor-pointer ${sel ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-200 hover:border-blue-300 hover:bg-blue-50'}`}>
-                <div className={`text-xs font-semibold ${sel ? 'text-blue-100' : 'text-gray-500'}`}>{plan.name}</div>
+                <div className="flex items-start justify-between gap-2">
+                  <div className={`text-xs font-semibold ${sel ? 'text-blue-100' : 'text-gray-500'}`}>{plan.name}</div>
+                  {planStatusOf(plan) !== 'open' && (
+                    <span className={`shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded ${sel ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+                      {PLAN_STATUS_LABELS[planStatusOf(plan)]}
+                    </span>
+                  )}
+                </div>
                 <div className={`font-mono text-xs mb-2 ${sel ? 'text-blue-200' : 'text-gray-400'}`}>{plan.label}</div>
                 <div className={`text-xl font-bold mb-0.5 ${sel ? 'text-white' : 'text-blue-700'}`}>{pct}%</div>
                 {row('實支已填', expDone)}
@@ -667,6 +675,7 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
           semester={effectiveSem}
           planId={selectedPlan?.id ?? null}
           remitApplies={selectedPlan ? selectedPlan.require_repay && !(selectedPlan.deduct_s1_repay && effectiveSem === 1) : effectiveSem === 2}
+          planStatus={selectedPlan ? planStatusOf(selectedPlan) : null}
           onClose={() => setNotifyOpen(false)}
           onNarrow={ids => setSelected(new Set(ids))}
           onSent={(ok, total) => {

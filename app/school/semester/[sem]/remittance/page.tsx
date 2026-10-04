@@ -1,5 +1,6 @@
 'use client'
 import { PlanClosedNotice } from '@/components/PlanClosedNotice'
+import type { PlanStatus } from '@/lib/planStatus'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { StatusChip } from '@/components/StatusChip'
 import { useRouter, useSearchParams, useParams } from 'next/navigation'
@@ -34,6 +35,7 @@ export default function RemittancePage() {
   const [hasPendingRequest, setHasPendingRequest] = useState(false)
   const [pendingUpload, setPendingUpload] = useState(false)
   const [planOpen, setPlanOpen] = useState(true)
+  const [planStatus, setPlanStatus] = useState<PlanStatus>('open')
 
   function fileViewUrl(path: string) {
     if (!path) return null
@@ -42,8 +44,9 @@ export default function RemittancePage() {
 
   useEffect(() => {
     const statusUrl = planId ? `/api/school/status?semester=${semester}&plan_id=${planId}` : `/api/school/status?semester=${semester}`
-    fetch(statusUrl).then(r => r.json()).then(({ settlement, pendingRequests, planOpen: open }) => {
+    fetch(statusUrl).then(r => r.json()).then(({ settlement, pendingRequests, planOpen: open, planStatus: ps }) => {
       setPlanOpen(open !== false)
+      setPlanStatus(ps || (open === false ? 'not_open' : 'open'))
       if (settlement) {
         setRepayAmount(settlement.repay_amount || 0)
         if (settlement.remittance_file_path) setExistingPath(settlement.remittance_file_path)
@@ -121,7 +124,7 @@ export default function RemittancePage() {
             <p className="text-sm text-gray-500 mt-1">第{semester}學期・賸餘款繳回公庫</p>
           </div>
 
-          {!planOpen && <PlanClosedNotice />}
+          {!planOpen && <PlanClosedNotice status={planStatus} />}
 
           {repayAmount > 0 && (
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm">

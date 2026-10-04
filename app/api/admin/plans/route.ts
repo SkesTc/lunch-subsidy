@@ -3,8 +3,19 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getUserZoneRole, isSuperAdmin, isZoneAdmin } from '@/lib/zones'
 
 import { NextResponse } from 'next/server'
+import { PLAN_STATUSES, type PlanStatus } from '@/lib/planStatus'
 
 // GET /api/admin/plans
+const MISSING_STATUS_COLUMN = '請先在 Supabase 執行 lib/migration-plan-status.sql（新增計畫狀態欄位），才能使用「已結案」'
+const isMissingStatusColumn = (msg?: string) => !!msg && /status/.test(msg) && /column|schema cache/i.test(msg)
+
+// 由請求取得送件狀態，並同步舊欄位 is_open
+function statusFields(status: unknown, isOpen: unknown): { status?: PlanStatus; is_open?: boolean } {
+  if (typeof status === 'string' && (PLAN_STATUSES as string[]).includes(status)) return { status: status as PlanStatus, is_open: status === 'open' }
+  if (typeof isOpen === 'boolean') return { status: isOpen ? 'open' : 'not_open', is_open: isOpen }
+  return {}
+}
+
 export async function GET(req: Request) {
   const session = await auth()
   if (!session?.user?.email) return NextResponse.json({ error: '未登入' }, { status: 401 })
@@ -38,7 +49,7 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const { zone_ids, name, label, plan_type, school_year, semester, require_repay, deduct_s1_repay,
-          deadline, open_note, sort_order, is_active, is_open } = body
+          deadline, open_note, sort_order, is_active, is_open, status } = body
 
   // 確認 zone_ids：區管理員只能設定自己的區
   let resolvedZoneIds: number[] = Array.isArray(zone_ids) ? zone_ids.map(Number) : []
@@ -48,19 +59,22 @@ export async function POST(req: Request) {
   if (resolvedZoneIds.length === 0) return NextResponse.json({ error: '請選擇至少一個區別' }, { status: 400 })
   if (!name) return NextResponse.json({ error: '請填寫計畫名稱' }, { status: 400 })
 
-  const { data, error } = await supabaseAdmin
-    .from('plans')
-    .insert({
+  const sf = statusFields(status ?? 'not_open', is_open)
+  const row = {
       zone_ids: resolvedZoneIds,
       zone_id: resolvedZoneIds[0],
       name, label: label || name, plan_type: plan_type || 'lunch',
       school_year: school_year || '', semester: semester ?? null,
       require_repay: require_repay ?? false, deduct_s1_repay: deduct_s1_repay ?? false,
       deadline: deadline || '', open_note: open_note || '',
-      sort_order: sort_order ?? 0, is_active: is_active ?? true, is_open: is_open ?? false,
-    })
-    .select()
-    .single()
+      sort_order: sort_order ?? 0, is_active: is_active ?? true, ...sf,
+  }
+  let { data, error } = await supabaseAdmin.from('plans').insert(row).select().single()
+  if (error && isMissingStatusColumn(error.message)) {
+    if (sf.status === 'closed') return NextResponse.json({ error: MISSING_STATUS_COLUMN }, { status: 400 })
+    const { status: _omit, ...legacy } = row  // eslint-disable-line @typescript-eslint/no-unused-vars
+    ;({ data, error } = await supabaseAdmin.from('plans').insert(legacy).select().single())
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
@@ -75,7 +89,7 @@ export async function PATCH(req: Request) {
   if (!zoneUser || !isZoneAdmin(zoneUser)) return NextResponse.json({ error: '無權限' }, { status: 403 })
 
   const body = await req.json()
-  const { id, name, label, plan_type, school_year, semester, is_active, is_open, sort_order,
+  const { id, name, label, plan_type, school_year, semester, is_active, is_open, status, sort_order,
           require_repay, deduct_s1_repay, deadline, open_note, zone_ids } = body
 
   // 確認計畫屬於有權限的區
@@ -97,7 +111,7 @@ export async function PATCH(req: Request) {
   if (school_year !== undefined) payload.school_year = school_year
   if (semester !== undefined) payload.semester = semester
   if (is_active !== undefined) payload.is_active = is_active
-  if (is_open !== undefined) payload.is_open = is_open
+  Object.assign(payload, statusFields(status, is_open))
   if (sort_order !== undefined) payload.sort_order = sort_order
   if (require_repay !== undefined) payload.require_repay = require_repay
   if (deduct_s1_repay !== undefined) payload.deduct_s1_repay = deduct_s1_repay
@@ -109,7 +123,12 @@ export async function PATCH(req: Request) {
     if (ids.length > 0) payload.zone_id = ids[0]
   }
 
-  const { error } = await supabaseAdmin.from('plans').update(payload).eq('id', id)
+  let { error } = await supabaseAdmin.from('plans').update(payload).eq('id', id)
+  if (error && isMissingStatusColumn(error.message)) {
+    if (payload.status === 'closed') return NextResponse.json({ error: MISSING_STATUS_COLUMN }, { status: 400 })
+    delete payload.status
+    ;({ error } = await supabaseAdmin.from('plans').update(payload).eq('id', id))
+  }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

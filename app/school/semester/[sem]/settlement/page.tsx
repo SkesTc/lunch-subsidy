@@ -1,5 +1,6 @@
 'use client'
 import { PlanClosedNotice } from '@/components/PlanClosedNotice'
+import type { PlanStatus } from '@/lib/planStatus'
 import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
@@ -32,6 +33,7 @@ export default function SettlementPage() {
   const [settingPlanName, setSettingPlanName] = useState('')
   const [isLocked, setIsLocked] = useState(false)
   const [planOpen, setPlanOpen] = useState(true)
+  const [planStatus, setPlanStatus] = useState<PlanStatus>('open')
   const [zoneName, setZoneName] = useState('')
 
   // 申請修改 modal
@@ -49,7 +51,7 @@ export default function SettlementPage() {
       : `/api/school/settlement-data?semester=${semester}`
     fetch(url)
       .then(r => r.json())
-      .then((data: { school: SchoolInfo; settlement: { business_expense?: number; amount_locked?: boolean; status?: string } | null; amounts: AmountInfo | null; schoolYear: string; planName?: string; planLabel?: string; planAmount?: number; sem1Repay?: number; zoneName?: string; planOpen?: boolean }) => {
+      .then((data: { school: SchoolInfo; settlement: { business_expense?: number; amount_locked?: boolean; status?: string } | null; amounts: AmountInfo | null; schoolYear: string; planName?: string; planLabel?: string; planAmount?: number; sem1Repay?: number; zoneName?: string; planOpen?: boolean; planStatus?: PlanStatus }) => {
         const { school: s, settlement: st, amounts: amt, schoolYear: sy, planName, planLabel: pl, planAmount: pa, zoneName: zn } = data
         setSchool(s)
         if (zn) setZoneName(zn)
@@ -57,6 +59,7 @@ export default function SettlementPage() {
         setExisting(st)
         setIsLocked(st?.amount_locked === true)
         setPlanOpen(data.planOpen !== false)
+        setPlanStatus(data.planStatus || (data.planOpen === false ? 'not_open' : 'open'))
         if (sy) setSchoolYear(sy)
         if (planName) setSettingPlanName(planName)
         if (amt) setAmountInfo(amt)
@@ -167,7 +170,7 @@ export default function SettlementPage() {
             <p className="text-sm text-gray-500 mt-1">{planLabel || semLabel(semester)}・{school.name}</p>
           </div>
 
-          {!planOpen && <PlanClosedNotice />}
+          {!planOpen && <PlanClosedNotice status={planStatus} />}
 
           {/* 核定金額（唯讀） */}
           <div className="bg-blue-50 rounded-xl p-4 space-y-2 text-sm">

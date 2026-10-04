@@ -6,6 +6,7 @@ import {
   CONDITION_LABELS, NOTIFY_VARIABLES, findCollectionTemplate, listCollectionTemplates, updateCollectionTemplate,
   type CollectionTemplate, type NotifyCondition,
 } from '@/lib/notifyTemplates'
+import type { PlanStatus } from '@/lib/planStatus'
 
 export interface NotifyTarget {
   id: number
@@ -26,10 +27,11 @@ function matches(target: NotifyCondition, t: NotifyTarget, remitApplies: boolean
   return true
 }
 
-export function NotifyModal({ targets, semester, planId, remitApplies, onClose, onNarrow, onSent }: {
+export function NotifyModal({ targets, semester, planId, planStatus, remitApplies, onClose, onNarrow, onSent }: {
   targets: NotifyTarget[]
   semester: number
   planId: string | null
+  planStatus?: PlanStatus | null
   remitApplies: boolean
   onClose: () => void
   onNarrow: (ids: number[]) => void
@@ -175,6 +177,13 @@ export function NotifyModal({ targets, semester, planId, remitApplies, onClose, 
           <div className="grid lg:grid-cols-2 gap-6 p-6 overflow-y-auto min-h-0">
             {/* 左：範本與內容 */}
             <div className="space-y-4 min-w-0">
+              {planStatus && planStatus !== 'open' && (
+                <div role="alert" className="text-sm bg-red-50 text-red-700 border border-red-200 rounded-lg px-3 py-2">
+                  {planStatus === 'closed'
+                    ? '此計畫已結案，學校目前無法填報或上傳。若要請學校補件，請先到「核銷計畫管理」將計畫改回「已開放」。'
+                    : '此計畫尚未開放送件，學校目前無法填報或上傳。若要請學校開始作業，請先到「核銷計畫管理」將計畫設為「已開放」。'}
+                </div>
+              )}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-medium text-gray-700">選擇範本</p>

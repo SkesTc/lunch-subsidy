@@ -1,4 +1,5 @@
 'use client'
+import { PLAN_STATUSES, PLAN_STATUS_LABELS, planStatusOf, type PlanStatus } from '@/lib/planStatus'
 import { useDialog } from '@/components/DialogProvider'
 import { useState, useEffect } from 'react'
 import { BlockSpinner, Spinner } from '@/components/Spinner'
@@ -6,7 +7,7 @@ import { BlockSpinner, Spinner } from '@/components/Spinner'
 interface Plan {
   id: string; name: string; label: string; semester: number | null
   require_repay: boolean; deduct_s1_repay: boolean; sort_order: number; is_active: boolean
-  deadline: string; school_year: string; is_open: boolean; open_note: string
+  deadline: string; school_year: string; is_open: boolean; open_note: string; status?: string | null
   zone_ids: number[]; zone_id: number
 }
 
@@ -14,7 +15,7 @@ interface Zone { id: number; name: string }
 
 const emptyPlan = (): Omit<Plan, 'id' | 'school_year' | 'zone_id'> => ({
   name: '', label: '', semester: 1, require_repay: false, deduct_s1_repay: false,
-  sort_order: 0, is_active: true, deadline: '', is_open: false, open_note: '', zone_ids: [],
+  sort_order: 0, is_active: true, deadline: '', is_open: false, open_note: '', zone_ids: [], status: 'not_open',
 })
 
 export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChanged }: { activeSchoolYear: string; isSuperAdmin: boolean; onPlansChanged?: () => void }) {
@@ -50,7 +51,7 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
       name: p.name, label: p.label, semester: p.semester,
       require_repay: p.require_repay, deduct_s1_repay: p.deduct_s1_repay ?? false,
       sort_order: p.sort_order, is_active: p.is_active, deadline: p.deadline || '',
-      is_open: p.is_open ?? false, open_note: p.open_note || '',
+      is_open: p.is_open ?? false, open_note: p.open_note || '', status: planStatusOf(p),
       zone_ids: p.zone_ids || (p.zone_id ? [p.zone_id] : []),
     })
     setMsg(''); setShowModal(true)
@@ -101,8 +102,19 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
     load(); onPlansChanged?.()
   }
 
-  async function toggleOpen(p: Plan) {
-    await fetch('/api/admin/plans', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, is_open: !p.is_open }) })
+  async function setStatus(p: Plan, status: PlanStatus) {
+    if (planStatusOf(p) === status) return
+    if (status === 'closed' && !(await dialog.confirm({
+      title: `將「${p.label || p.name}」設為已結案`,
+      message: '結案後學校只能檢視已填報的金額與已上傳的檔案，無法再修改或上傳。之後仍可改回「已開放」。',
+      confirmLabel: '設為已結案',
+    }))) return
+    const res = await fetch('/api/admin/plans', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, status }) })
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      await dialog.alert({ title: '無法變更送件狀態', message: d.error || `HTTP ${res.status}`, tone: 'error' })
+      return
+    }
     load(); onPlansChanged?.()
   }
 
@@ -152,7 +164,7 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
                 <th className="text-center px-4 py-3 text-gray-600 font-medium">學期</th>
                 <th className="text-center px-4 py-3 text-gray-600 font-medium">繳回賸餘款</th>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">截止說明</th>
-                <th className="text-center px-4 py-3 text-gray-600 font-medium">開放送件</th>
+                <th className="text-center px-4 py-3 text-gray-600 font-medium">送件狀態</th>
                 <th className="text-center px-4 py-3 text-gray-600 font-medium">啟用</th>
                 <th className="text-center px-4 py-3 text-gray-600 font-medium">操作</th>
               </tr>
@@ -177,10 +189,7 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{p.deadline || '—'}</td>
                   <td className="px-4 py-3 text-center">
-                    <button onClick={() => toggleOpen(p)}
-                      className={`text-xs px-2 py-0.5 rounded-full cursor-pointer ${p.is_open ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
-                      {p.is_open ? '開放中' : '關閉'}
-                    </button>
+                    <PlanStatusSwitch value={planStatusOf(p)} onChange={st => setStatus(p, st)} label={`${p.label || p.name}送件狀態`} />
                   </td>
                   <td className="px-4 py-3 text-center">
                     <button onClick={() => toggleActive(p)}
@@ -260,10 +269,10 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
                 placeholder="例：115學年度開學後開放" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div className="flex flex-wrap items-center gap-6">
-              <label className="flex items-center gap-2 cursor-pointer text-sm">
-                <input type="checkbox" checked={form.is_open} onChange={e => setForm(f => ({ ...f, is_open: e.target.checked }))} className="w-4 h-4 rounded" />
-                <span className="font-medium text-green-700">開放學校送件</span>
-              </label>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="font-medium text-gray-700">送件狀態</span>
+                <PlanStatusSwitch value={planStatusOf(form)} onChange={st => setForm(f => ({ ...f, status: st, is_open: st === 'open' }))} label="送件狀態" />
+              </div>
               <label className="flex items-center gap-2 cursor-pointer text-sm">
                 <input type="checkbox" checked={form.require_repay} onChange={e => setForm(f => ({ ...f, require_repay: e.target.checked }))} className="w-4 h-4 rounded" />
                 須繳回賸餘款
@@ -320,6 +329,26 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+const STATUS_ACTIVE: Record<PlanStatus, string> = {
+  not_open: 'bg-white text-gray-700 shadow-sm',
+  open: 'bg-green-600 text-white shadow-sm',
+  closed: 'bg-slate-600 text-white shadow-sm',
+}
+
+// 三段式送件狀態切換：未開放／已開放／已結案
+function PlanStatusSwitch({ value, onChange, label }: { value: PlanStatus; onChange: (s: PlanStatus) => void; label: string }) {
+  return (
+    <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg bg-gray-100 p-0.5 text-xs">
+      {PLAN_STATUSES.map(st => (
+        <button key={st} type="button" role="radio" aria-checked={value === st} onClick={() => onChange(st)}
+          className={`px-2.5 py-1 rounded-md font-medium whitespace-nowrap cursor-pointer transition-colors ${value === st ? STATUS_ACTIVE[st] : 'text-gray-500 hover:text-gray-800'}`}>
+          {PLAN_STATUS_LABELS[st]}
+        </button>
+      ))}
     </div>
   )
 }
