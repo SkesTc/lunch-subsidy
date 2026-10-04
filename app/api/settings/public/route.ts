@@ -1,28 +1,14 @@
-import { supabaseAdmin } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
+import { readGlobalSettingsRaw } from '@/lib/settings'
 
-const BUCKET = 'settlement-files'
-const PATH = '__system/settings.json'
-
-const DEFAULTS = {
-  system_name: '免費營養午餐核銷系統',
-  host_school: '',
-  admin_name: '',
-  admin_title: '',
-  admin_phone: '',
-  school_year: '115',
-  active_school_year: '115',
-  manual_url: '',
-}
-
-// 登入頁公開端點：直接讀 settings.json（SettingsTab 儲存處），不走 zone_settings
+// 登入頁公開端點（不需登入）：只能回傳白名單欄位，切勿整包回傳設定檔（內含 GAS 金鑰等機密）
 export async function GET() {
-  try {
-    const { data } = await supabaseAdmin.storage.from(BUCKET).download(PATH)
-    if (data) {
-      const parsed = JSON.parse(await data.text())
-      return NextResponse.json({ ...DEFAULTS, ...parsed })
-    }
-  } catch { /* 忽略 */ }
-  return NextResponse.json(DEFAULTS)
+  const raw = await readGlobalSettingsRaw()
+  const str = (k: string, fallback = '') => (typeof raw[k] === 'string' && raw[k] ? raw[k] as string : fallback)
+  return NextResponse.json({
+    system_name: str('system_name', '免費營養午餐核銷系統'),
+    school_year: str('active_school_year', str('school_year', '115')),
+    designer_name: str('designer_name'),
+    designer_title: str('designer_title'),
+  })
 }

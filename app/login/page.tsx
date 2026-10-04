@@ -9,18 +9,16 @@ function LoginContent() {
   const params = useSearchParams()
   const error = params.get('error')
   const [loading, setLoading] = useState(false)
-  const [settings, setSettings] = useState<{ system_name: string; host_school: string; admin_name: string; admin_title: string; admin_phone: string; school_year: string } | null>(null)
+  const [settings, setSettings] = useState<{ system_name: string; school_year: string; designer_name: string; designer_title: string } | null>(null)
   const [zoneContacts, setZoneContacts] = useState<ZoneContact[]>([])
 
   useEffect(() => {
     fetch('/api/settings/public').then(r => r.json()).then(d => {
       setSettings({
         system_name: d.system_name || '免費營養午餐核銷系統',
-        host_school: d.host_school || '',
-        admin_name: d.admin_name || '',
-        admin_title: d.admin_title || '',
-        admin_phone: d.admin_phone || '',
         school_year: d.school_year || '115',
+        designer_name: d.designer_name || '',
+        designer_title: d.designer_title || '',
       })
     }).catch(() => {})
     fetch('/api/settings/zones-public').then(r => r.json()).then(d => {
@@ -90,7 +88,7 @@ function LoginContent() {
         </div>
 
         {/* 底部各分區聯絡資訊 */}
-        {(zoneContacts.length > 0 || (settings && (settings.admin_name || settings.host_school))) && (
+        {(zoneContacts.length > 0 || (settings && settings.designer_name)) && (
           <div className="space-y-2 py-1">
             {zoneContacts.map(z => (
               <div key={z.id} className="bg-white/60 rounded-xl px-4 py-2.5 text-xs text-slate-500 space-y-0.5">
@@ -104,15 +102,9 @@ function LoginContent() {
                 )}
               </div>
             ))}
-            {settings && (settings.admin_name || settings.host_school || settings.admin_phone) && (
-              <div className="text-center text-xs text-slate-400 pt-1 space-y-0.5">
-                {settings.host_school && <p>系統設計：{settings.host_school}</p>}
-                {(settings.admin_name || settings.admin_title) && (
-                  <p>系統設計：{settings.admin_name}{settings.admin_title ? `（${settings.admin_title}）` : ''}</p>
-                )}
-                {settings.admin_phone && (
-                  <a href={`tel:${settings.admin_phone}`} className="text-blue-400 hover:underline block">📞 {settings.admin_phone}</a>
-                )}
+            {settings && (settings.designer_name || settings.designer_title) && (
+              <div className="text-center text-xs text-slate-400 pt-1">
+                <p>系統設計：{settings.designer_name}{settings.designer_title ? `（${settings.designer_title}）` : ''}</p>
               </div>
             )}
           </div>
