@@ -16,3 +16,10 @@ export interface SettleRow {
 }
 export interface ProfileRow { email: string; school_id: number | null; is_admin: boolean }
 export interface ContactInfo { contact_name: string; contact_title: string; contact_phone: string }
+
+export interface Plan {
+  id: string; name: string; label: string; semester: number | null
+  require_repay: boolean; deduct_s1_repay: boolean; sort_order: number; is_active: boolean
+  deadline: string; school_year: string
+}
+export interface PlanAmount { school_id: number; plan_id: string; semester: number; amount: number }

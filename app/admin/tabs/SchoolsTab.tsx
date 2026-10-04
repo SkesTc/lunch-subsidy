@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { formatAmount } from '@/lib/utils'
 import { Spinner, BlockSpinner } from '@/components/Spinner'
-import type { Plan } from '../AdminDashboardClient'
+import type { Plan } from '../types'
 const PlansTab = dynamic(() => import('./PlansTab'), { loading: () => <BlockSpinner /> })
 const NotifyTab = dynamic(() => import('./NotifyTab'), { loading: () => <BlockSpinner /> })
 
