@@ -6,10 +6,9 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Spinner } from '@/components/Spinner'
 
-function fileViewUrl(path: string) {
+function fileViewUrl(path: string, name: string) {
   if (!path) return null
-  if (!path.includes('/')) return `https://drive.google.com/file/d/${path}/view`
-  return `/api/account/file?path=${encodeURIComponent(path)}`
+  return `/school/file-viewer?${new URLSearchParams({ fileId: path, name })}`
 }
 
 export default function UploadPage() {
@@ -89,7 +88,7 @@ export default function UploadPage() {
     setShowModal(false); setModalFile(null); setReason(''); setReasonError(''); setRequestDone(false)
   }
 
-  const viewUrl = existingPath ? fileViewUrl(existingPath) : null
+  const viewUrl = existingPath ? fileViewUrl(existingPath, `第${semester}學期・經費收支結算表`) : null
 
   if (statusLoading) return <LoadingSpinner />
 
@@ -139,7 +138,7 @@ export default function UploadPage() {
                 {viewUrl && (
                   <a href={viewUrl} target="_blank" rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 underline">
-                    📄 開啟已上傳的檔案
+                    開啟已上傳的檔案
                   </a>
                 )}
               </div>
