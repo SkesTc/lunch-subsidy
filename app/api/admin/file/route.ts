@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getGasSettings, gasDeleteFile } from '@/lib/gas'
 import { getUserZoneRole, isSuperAdmin, getZoneSchoolIds } from '@/lib/zones'
 import { writeLog } from '@/lib/operationLog'
+import { canAdminAccessFile } from '@/lib/fileAccess'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
@@ -12,6 +13,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const path = searchParams.get('path')
   if (!path) return NextResponse.json({ error: '無路徑' }, { status: 400 })
+  if (!(await canAdminAccessFile(session.user.email!, path))) return NextResponse.json({ error: '無權限檢視此檔案' }, { status: 403 })
 
   const { data, error } = await supabaseAdmin.storage
     .from('settlement-files')
