@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getSettingsForZone } from '@/lib/settings'
+import { getGlobalSettings, getSettingsForZone } from '@/lib/settings'
 import Navbar from '@/components/Navbar'
 import ImpersonateBanner from '@/components/ImpersonateBanner'
 import Link from 'next/link'
@@ -39,16 +39,17 @@ export default async function SchoolDashboard() {
   }
   if (!effectiveSchoolId) redirect('/bind-school')
 
-  // 先取得學校的 zone_id，再載入對應區別設定
-  const { data: schoolZone } = await supabaseAdmin
-    .from('schools').select('zone_id').eq('id', effectiveSchoolId).single()
-  const zoneId = schoolZone?.zone_id || 2
+  // 第 1 輪：學校（含所屬分區）與全域設定（學年度）同時查
+  const [{ data: school }, globalSettings] = await Promise.all([
+    supabaseAdmin.from('schools').select('id, code, district, name, zone_id').eq('id', effectiveSchoolId).single(),
+    getGlobalSettings(),
+  ])
+  const zoneId = school?.zone_id || 2
+  const schoolYear = (globalSettings.active_school_year || globalSettings.school_year || '115') as string
 
-  const sysSettings = await getSettingsForZone(zoneId)
-  const schoolYear = (sysSettings.active_school_year || sysSettings.school_year || '115') as string
-
+  // 第 2 輪：分區設定與其餘資料全部同時查
   const [
-    { data: school },
+    sysSettings,
     { data: amounts },
     { data: bank1 },
     { data: settle1 },
@@ -59,7 +60,7 @@ export default async function SchoolDashboard() {
     { data: planAmountRows },
     { data: planSettlements },
   ] = await Promise.all([
-    supabaseAdmin.from('schools').select('id, code, district, name').eq('id', effectiveSchoolId).single(),
+    getSettingsForZone(zoneId),
     supabaseAdmin.from('school_amounts').select('sem1_amount, sem2_amount, approved_total').eq('school_id', effectiveSchoolId).eq('school_year', schoolYear).single(),
     supabaseAdmin.from('bank_accounts').select('confirmed_at, is_modified').eq('school_id', effectiveSchoolId).eq('semester', 1).eq('school_year', schoolYear).single(),
     supabaseAdmin.from('settlements').select('status, scan_file_path, total_expense, surplus, repay_amount, business_expense').eq('school_id', effectiveSchoolId).eq('semester', 1).eq('school_year', schoolYear).single(),

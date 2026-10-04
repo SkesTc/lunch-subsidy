@@ -77,22 +77,19 @@ const GLOBAL_CACHE_KEY = -1
 
 async function fetchSettings(zoneId: number): Promise<AllSettings> {
   try {
-    // 讀取 zone 基本資訊（host_school 存在 zones 表）
-    const { data: zoneRow } = await supabaseAdmin
-      .from('zones')
-      .select('name, host_school, host_email')
-      .eq('id', zoneId)
-      .single()
+    // 分區基本資訊（zones 表）、分區設定、全域設定三者同時查詢
+    const [{ data: zoneRow }, zoneSettingsData, globalRaw] = await Promise.all([
+      supabaseAdmin.from('zones').select('name, host_school, host_email').eq('id', zoneId).single(),
+      getZoneSettings(zoneId),
+      getGlobalSettingsRaw(),
+    ])
     const zoneBasic = zoneRow
       ? { host_school: zoneRow.host_school || '', system_name: zoneRow.name || '' }
       : {}
-
-    // 從 zone_settings 讀取（新架構）
-    const zoneSettingsData = await getZoneSettings(zoneId)
     const hasZoneSettings = Object.keys(zoneSettingsData).length > 0
 
     // 全域設定（去除分區欄位：分區欄位留空時用預設值，不回退到全域檔）
-    const jsonSettings = stripZoneKeys(await readGlobalSettingsRaw()) as Partial<AllSettings>
+    const jsonSettings = stripZoneKeys(globalRaw) as Partial<AllSettings>
 
     if (hasZoneSettings || zoneRow) {
       const filtered = Object.fromEntries(
@@ -113,11 +110,20 @@ async function fetchSettingsForZone(zoneId: number): Promise<AllSettings> {
   return fetchSettings(zoneId)
 }
 
+// 全域設定原始內容的短暫快取（與 getGlobalSettings 共用，避免同一次請求重複查詢）
+let _globalRawCache: { data: Record<string, unknown>; ts: number } | null = null
+async function getGlobalSettingsRaw(): Promise<Record<string, unknown>> {
+  if (_globalRawCache && Date.now() - _globalRawCache.ts < TTL) return _globalRawCache.data
+  const data = await readGlobalSettingsRaw()
+  _globalRawCache = { data, ts: Date.now() }
+  return data
+}
+
 /** 全域設定（不含任何分區值）：學年度、GAS、範本、備份等全系統共用欄位 */
 export async function getGlobalSettings(): Promise<AllSettings> {
   const cached = _cacheMap.get(GLOBAL_CACHE_KEY)
   if (cached && Date.now() - cached.ts < TTL) return cached.data
-  const data = { ...DEFAULTS, ...stripZoneKeys(await readGlobalSettingsRaw()) } as AllSettings
+  const data = { ...DEFAULTS, ...stripZoneKeys(await getGlobalSettingsRaw()) } as AllSettings
   _cacheMap.set(GLOBAL_CACHE_KEY, { data, ts: Date.now() })
   return data
 }
@@ -196,7 +202,7 @@ export async function writeGlobalSettings(updates: Record<string, unknown>) {
     if (t.state === 'empty') await upsertRows(await readFile())
     await upsertRows(filtered)
   }
-  _cacheMap.clear()
+  invalidateSettingsCache()
 }
 
 /** 整份覆寫全域設定（僅供資料清理工具使用；一般儲存請用 writeGlobalSettings） */
@@ -212,12 +218,13 @@ export async function replaceGlobalSettingsRaw(obj: Record<string, unknown>) {
     }
     await upsertRows(obj)
   }
-  _cacheMap.clear()
+  invalidateSettingsCache()
 }
 
 /** 讓外部可以主動清除快取（儲存設定後呼叫） */
 export function invalidateSettingsCache() {
   _cacheMap.clear()
+  _globalRawCache = null
 }
 
 // ── 向下相容的具名 exports ──────────────────────────────────
