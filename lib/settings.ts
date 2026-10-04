@@ -172,6 +172,14 @@ export async function writeGlobalSettings(updates: Record<string, unknown>) {
   _cacheMap.clear()
 }
 
+/** 整份覆寫全域設定檔（僅供資料清理工具使用；一般儲存請用 writeGlobalSettings） */
+export async function replaceGlobalSettingsRaw(obj: Record<string, unknown>) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' })
+  const { error } = await supabaseAdmin.storage.from(BUCKET).upload(PATH, blob, { upsert: true, contentType: 'application/json' })
+  if (error) throw new Error(error.message)
+  _cacheMap.clear()
+}
+
 /** 讓外部可以主動清除快取（儲存設定後呼叫） */
 export function invalidateSettingsCache() {
   _cacheMap.clear()

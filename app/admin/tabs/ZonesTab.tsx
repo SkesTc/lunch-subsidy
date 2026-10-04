@@ -48,7 +48,7 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
   const [msgOk, setMsgOk] = useState(true)
-  const [clearingLegacy, setClearingLegacy] = useState(false)
+  const [showCleanup, setShowCleanup] = useState(false)
   const [mainTab, setMainTab] = useState<'zones' | 'admins' | 'overview'>('zones')
 
   // 新增區別
@@ -210,22 +210,6 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
     }
   }
 
-  // 一次性維護工具：清除舊版全域設定檔（settings.json）殘留的 block1_deadline，
-  // 避免分區欄位留空時，誤 fallback 到這筆過時資料而非程式預設文字
-  async function clearLegacyDeadline() {
-    if (!confirm('將清除全域設定檔中殘留的「帳戶確認截止說明」舊資料，確定執行？')) return
-    setClearingLegacy(true)
-    const res = await fetch('/api/admin/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ block1_deadline: '' }),
-    })
-    setClearingLegacy(false)
-    if (res.ok) { setMsgOk(true); setMsg('✅ 已清除舊版全域殘留值') }
-    else { setMsgOk(false); setMsg('❌ 清除失敗') }
-    setTimeout(() => setMsg(''), 4000)
-  }
-
   async function loadOverview() {
     setOverviewLoading(true)
     const res = await fetch('/api/admin/zone-overview')
@@ -274,6 +258,12 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                 </button>
               ))}
             </div>
+            {isSuperAdmin && (
+              <button onClick={() => setShowCleanup(true)}
+                className="mt-3 w-full text-xs text-gray-500 border border-dashed border-gray-300 hover:border-gray-400 hover:text-gray-700 rounded-lg py-2 cursor-pointer">
+                🧹 整理設定資料
+              </button>
+            )}
           </div>
 
           {/* 右側：設定表單 */}
@@ -351,15 +341,6 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
                         )
                       })}
                     </div>
-                    {section === 'account' && isSuperAdmin && (
-                      <p className="text-xs text-gray-400 mt-2">
-                        欄位留空卻仍顯示舊文字？
-                        <button type="button" onClick={clearLegacyDeadline} disabled={clearingLegacy}
-                          className="text-blue-600 hover:underline cursor-pointer disabled:opacity-50 ml-1">
-                          {clearingLegacy ? '清除中...' : '清除全域殘留設定'}
-                        </button>
-                      </p>
-                    )}
                   </div>
                 ))}
               </div>
@@ -566,6 +547,114 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
           </div>
         </div>
       )}
+      {showCleanup && <SettingsCleanupModal onClose={() => setShowCleanup(false)} />}
+    </div>
+  )
+}
+
+interface CleanupPreview {
+  removeEntries: { key: string; label: string; value: string }[]
+  legacyRows: { key: string; value: string; plan_id: number }[]
+  impacts: { zone: string; label: string; before: string; after: string }[]
+  nothingToDo: boolean
+}
+
+function SettingsCleanupModal({ onClose }: { onClose: () => void }) {
+  const [preview, setPreview] = useState<CleanupPreview | null>(null)
+  const [error, setError] = useState('')
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState<{ backupPath: string; removedKeys: number; removedRows: number } | null>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/settings-cleanup').then(async r => {
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.error || `讀取失敗（HTTP ${r.status}）`)
+      setPreview(d)
+    }).catch(e => setError(e instanceof Error ? e.message : '讀取失敗'))
+  }, [])
+
+  async function execute() {
+    setRunning(true); setError('')
+    try {
+      const r = await fetch('/api/admin/settings-cleanup', { method: 'POST' })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok || !d.ok) throw new Error(d.error || `執行失敗（HTTP ${r.status}）`)
+      setResult(d)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '執行失敗')
+    }
+    setRunning(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-800">整理設定資料</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none cursor-pointer">×</button>
+        </div>
+        <div className="overflow-y-auto p-5 space-y-4 text-sm">
+          {error && <p className="text-red-600">{error}</p>}
+          {!preview && !error && <p className="text-gray-500 flex items-center gap-2"><Spinner /> 分析中…</p>}
+          {result ? (
+            <div className="bg-green-50 text-green-800 rounded-xl p-4 space-y-1">
+              <p className="font-semibold">✅ 整理完成</p>
+              <p className="text-xs">已移除全域設定 {result.removedKeys} 項、舊分區資料 {result.removedRows} 筆。</p>
+              <p className="text-xs text-green-700 break-all">整理前的資料已備份至：{result.backupPath}</p>
+            </div>
+          ) : preview && preview.nothingToDo ? (
+            <p className="text-green-700 bg-green-50 rounded-xl p-4">設定資料已經是乾淨的，不需要整理。</p>
+          ) : preview && (
+            <>
+              <p className="text-gray-600">
+                全域設定檔裡殘留了一些應由「區別管理」維護的分區欄位，會在分區欄位留空時誤顯示舊資料。整理時會<strong>先自動備份</strong>，再移除下列項目：
+              </p>
+              {preview.removeEntries.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 mb-1">從全域設定檔移除</p>
+                  <ul className="border border-gray-200 rounded-lg divide-y divide-gray-100">
+                    {preview.removeEntries.map(e => (
+                      <li key={e.key} className="px-3 py-1.5 flex justify-between gap-3 text-xs">
+                        <span className="text-gray-600 shrink-0">{e.label}</span>
+                        <span className="text-gray-400 truncate">{e.value || '（空白）'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {preview.legacyRows.length > 0 && (
+                <p className="text-xs text-gray-500">另會刪除早期遷移遺留、已無功能使用的計畫層級分區資料 {preview.legacyRows.length} 筆。</p>
+              )}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1">整理後畫面上會改變的內容</p>
+                {preview.impacts.length === 0 ? (
+                  <p className="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">各分區目前顯示的內容都不會改變。</p>
+                ) : (
+                  <ul className="border border-orange-200 bg-orange-50 rounded-lg divide-y divide-orange-100">
+                    {preview.impacts.map((m, i) => (
+                      <li key={i} className="px-3 py-1.5 text-xs text-orange-800">
+                        {m.zone}・{m.label}：「{m.before || '空白'}」→「{m.after || '空白'}」
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {preview.impacts.length > 0 && <p className="text-xs text-gray-500 mt-1">若要保留原內容，請在整理後到該分區的設定中填入。</p>}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="px-5 pb-5 pt-2 flex gap-3 justify-end">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm border border-gray-300 text-gray-600 hover:bg-gray-50 cursor-pointer">
+            {result ? '關閉' : '取消'}
+          </button>
+          {preview && !preview.nothingToDo && !result && (
+            <button onClick={execute} disabled={running}
+              className="px-4 py-2 rounded-lg text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium cursor-pointer flex items-center gap-2">
+              {running && <Spinner />}{running ? '整理中…' : '確認備份並整理'}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
