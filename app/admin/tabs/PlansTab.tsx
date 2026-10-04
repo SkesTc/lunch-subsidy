@@ -31,6 +31,9 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
   const [msg, setMsg] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<Plan | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [dragId, setDragId] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ id: string; after: boolean } | null>(null)
+  const [orderMsg, setOrderMsg] = useState('')
 
   function load() {
     setLoading(true)
@@ -73,11 +76,48 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
     const body = isSuperAdmin ? { ...form } : { ...form, zone_ids: undefined }
     const res = editing
       ? await fetch('/api/admin/plans', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editing.id, ...body }) })
-      : await fetch('/api/admin/plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, school_year: activeSchoolYear }) })
+      : await fetch('/api/admin/plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, school_year: activeSchoolYear, sort_order: (plans.length + 1) * 10 }) })
     const d = await res.json()
     if (res.ok) { setShowModal(false); load(); onPlansChanged?.() }
     else setMsg(d.error || '儲存失敗')
     setSaving(false)
+  }
+
+  // 拖拉排序：放開後立即儲存整串順序，失敗則重新載入
+  async function saveOrder(next: Plan[]) {
+    setPlans(next)
+    setOrderMsg('儲存排序中…')
+    const res = await fetch('/api/admin/plans/reorder', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: next.map(p => p.id) }),
+    })
+    if (res.ok) { setOrderMsg('已更新排序'); onPlansChanged?.(); setTimeout(() => setOrderMsg(''), 2000) }
+    else {
+      const d = await res.json().catch(() => ({}))
+      setOrderMsg('')
+      await dialog.alert({ title: '排序未儲存', message: d.error || `HTTP ${res.status}`, tone: 'error' })
+      load()
+    }
+  }
+
+  function moveTo(id: string, targetId: string, after: boolean) {
+    if (id === targetId) return
+    const rest = plans.filter(p => p.id !== id)
+    const moving = plans.find(p => p.id === id)
+    const idx = rest.findIndex(p => p.id === targetId)
+    if (!moving || idx < 0) return
+    rest.splice(after ? idx + 1 : idx, 0, moving)
+    saveOrder(rest)
+  }
+
+  function moveBy(id: string, delta: number) {
+    const i = plans.findIndex(p => p.id === id)
+    const j = i + delta
+    if (i < 0 || j < 0 || j >= plans.length) return
+    const next = [...plans]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    saveOrder(next)
+    requestAnimationFrame(() => document.getElementById(`plan-handle-${id}`)?.focus())
   }
 
   async function confirmDelete() {
@@ -154,10 +194,16 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
           <p className="text-sm mt-1">點「建立預設計畫」快速套用範例，或點「+ 新增計畫」自訂</p>
         </div>
       ) : (
+        <div className="space-y-2">
+        <p className="text-xs text-gray-500 flex items-center gap-3">
+          <span>拖曳列表左側的 ⋮⋮ 可調整計畫順序，學校端與總覽會依此順序顯示。</span>
+          {orderMsg && <span className={orderMsg.startsWith('已') ? 'text-green-600' : 'text-gray-400'}>{orderMsg}</span>}
+        </p>
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
+                <th className="w-10 px-2 py-3"><span className="sr-only">排序</span></th>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">計畫名稱</th>
                 <th className="text-left px-4 py-3 text-gray-600 font-medium">短標籤</th>
                 {isSuperAdmin && <th className="text-left px-4 py-3 text-gray-600 font-medium">適用區別</th>}
@@ -171,7 +217,35 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
             </thead>
             <tbody className="divide-y divide-gray-100">
               {plans.map(p => (
-                <tr key={p.id} className={`hover:bg-gray-50 ${!p.is_active ? 'opacity-50' : ''}`}>
+                <tr key={p.id}
+                  onDragOver={e => {
+                    if (!dragId) return
+                    e.preventDefault()
+                    const r = e.currentTarget.getBoundingClientRect()
+                    setDropTarget({ id: p.id, after: e.clientY > r.top + r.height / 2 })
+                  }}
+                  onDrop={e => {
+                    e.preventDefault()
+                    if (dragId && dropTarget) moveTo(dragId, dropTarget.id, dropTarget.after)
+                    setDragId(null); setDropTarget(null)
+                  }}
+                  className={`hover:bg-gray-50 ${!p.is_active ? 'opacity-50' : ''} ${dragId === p.id ? 'opacity-40' : ''} ${
+                    dropTarget?.id === p.id && dragId !== p.id ? (dropTarget.after ? 'shadow-[inset_0_-2px_0_0_#2563eb]' : 'shadow-[inset_0_2px_0_0_#2563eb]') : ''}`}>
+                  <td className="px-2 py-3 text-center">
+                    <button id={`plan-handle-${p.id}`} type="button" draggable
+                      onDragStart={e => { setDragId(p.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', p.id) }}
+                      onDragEnd={() => { setDragId(null); setDropTarget(null) }}
+                      onKeyDown={e => {
+                        if (e.key === 'ArrowUp') { e.preventDefault(); moveBy(p.id, -1) }
+                        if (e.key === 'ArrowDown') { e.preventDefault(); moveBy(p.id, 1) }
+                      }}
+                      aria-label={`調整「${p.label || p.name}」的順序（拖曳，或按上下鍵）`} title="拖曳調整順序，或聚焦後按 ↑ ↓"
+                      className="inline-flex p-1 rounded text-gray-300 hover:text-gray-600 hover:bg-gray-100 cursor-grab active:cursor-grabbing focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" /><circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" /><circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" />
+                      </svg>
+                    </button>
+                  </td>
                   <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
                   <td className="px-4 py-3">
                     <span className="font-mono text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{p.label}</span>
@@ -207,6 +281,7 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
 
@@ -251,11 +326,6 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
                   <option value={2}>第2學期</option>
                   <option value="">全年</option>
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">排序</label>
-                <input type="number" value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
             </div>
             <div>
