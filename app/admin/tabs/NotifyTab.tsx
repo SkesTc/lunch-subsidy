@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Spinner, BlockSpinner } from '@/components/Spinner'
+import { EmailPreview, SAMPLE_VARS } from '@/components/EmailPreview'
 import { NOTIFY_SCENARIOS, NOTIFY_VARIABLES, getScenario, parseSavedTemplates, resolveTemplate, type NotifyScenarioId } from '@/lib/notifyTemplates'
 
 interface Settings {
@@ -10,7 +11,7 @@ interface Settings {
   [key: string]: string
 }
 
-export default function NotifyTab({ isSuperAdmin }: { isSuperAdmin?: boolean }) {
+export default function NotifyTab({ isSuperAdmin, initialScenario }: { isSuperAdmin?: boolean; initialScenario?: NotifyScenarioId }) {
   const [settings, setSettings] = useState<Settings | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -57,7 +58,7 @@ export default function NotifyTab({ isSuperAdmin }: { isSuperAdmin?: boolean }) 
     setSettings(prev => prev ? { ...prev, [k]: v } : prev)
   }
 
-  const [tplScenario, setTplScenario] = useState<NotifyScenarioId>('expense')
+  const [tplScenario, setTplScenario] = useState<NotifyScenarioId>(initialScenario || 'expense')
 
   // 情境範本：自訂寫回 notify_subject / notify_body，其餘存於 notify_templates（JSON）
   function setTemplate(field: 'subject' | 'body', value: string) {
@@ -132,56 +133,77 @@ export default function NotifyTab({ isSuperAdmin }: { isSuperAdmin?: boolean }) 
             </button>
           ))}
         </div>
-        <p className="text-xs text-gray-500">適用對象：{getScenario(tplScenario).target}</p>
-        <div>
-          <label htmlFor="tpl-subject" className="block text-sm font-medium text-gray-700 mb-1">信件主旨</label>
-          <input id="tpl-subject" value={resolveTemplate(tplScenario, settings).subject} onChange={e => setTemplate('subject', e.target.value)} className={inputCls} />
-        </div>
-        <div>
-          <label htmlFor="tpl-body" className="block text-sm font-medium text-gray-700 mb-1">信件內容</label>
-          <textarea id="tpl-body" value={resolveTemplate(tplScenario, settings).body} onChange={e => setTemplate('body', e.target.value)}
-            rows={9} className={`${inputCls} resize-y`} />
-        </div>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <button onClick={resetTemplate} className="text-xs text-gray-500 hover:text-gray-800 underline cursor-pointer">還原此情境的系統預設內容</button>
-          <details className="text-xs text-gray-500 w-full">
-            <summary className="cursor-pointer select-none">催收通知可用變數</summary>
-            <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1 mt-2">
-              {NOTIFY_VARIABLES.map(([v, desc, ex]) => (
-                <div key={v} className="flex gap-2"><code className="text-blue-700 bg-blue-50 px-1 rounded shrink-0">{v}</code><span>{desc}<span className="text-gray-400 ml-1">例：{ex}</span></span></div>
-              ))}
-            </div>
-          </details>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <div className="space-y-4 min-w-0">
+          <p className="text-xs text-gray-500">適用對象：{getScenario(tplScenario).target}</p>
+          <div>
+            <label htmlFor="tpl-subject" className="block text-sm font-medium text-gray-700 mb-1">信件主旨</label>
+            <input id="tpl-subject" value={resolveTemplate(tplScenario, settings).subject} onChange={e => setTemplate('subject', e.target.value)} className={inputCls} />
+          </div>
+          <div>
+            <label htmlFor="tpl-body" className="block text-sm font-medium text-gray-700 mb-1">信件內容</label>
+            <textarea id="tpl-body" value={resolveTemplate(tplScenario, settings).body} onChange={e => setTemplate('body', e.target.value)}
+              rows={9} className={`${inputCls} resize-y`} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <button onClick={resetTemplate} className="text-xs text-gray-500 hover:text-gray-800 underline cursor-pointer">還原此情境的系統預設內容</button>
+            <details className="text-xs text-gray-500 w-full">
+              <summary className="cursor-pointer select-none">催收通知可用變數</summary>
+              <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1 mt-2">
+                {NOTIFY_VARIABLES.map(([v, desc, ex]) => (
+                  <div key={v} className="flex gap-2"><code className="text-blue-700 bg-blue-50 px-1 rounded shrink-0">{v}</code><span>{desc}<span className="text-gray-400 ml-1">例：{ex}</span></span></div>
+                ))}
+              </div>
+            </details>
+          </div>
+
+          </div>
+          <EmailPreview subject={resolveTemplate(tplScenario, settings).subject} body={resolveTemplate(tplScenario, settings).body}
+            vars={SAMPLE_VARS} systemName={String(settings.system_name || '')} />
         </div>
       </div>
 
       {/* 審核通過通知 */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-        <h2 className="font-semibold text-gray-800 border-b pb-2">✅ 審核通過通知</h2>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">信件主旨</label>
-          <input value={settings.review_approve_subject} onChange={e => set('review_approve_subject', e.target.value)}
-            className={inputCls} placeholder="【核銷系統】{semLabel}申請已核准" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">信件內容</label>
-          <textarea value={settings.review_approve_body} onChange={e => set('review_approve_body', e.target.value)}
-            rows={6} className={`${inputCls} resize-none`} />
+        <h2 className="font-semibold text-gray-800 border-b pb-2">審核通過通知</h2>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <div className="space-y-4 min-w-0">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">信件主旨</label>
+              <input value={settings.review_approve_subject} onChange={e => set('review_approve_subject', e.target.value)}
+                className={inputCls} placeholder="【核銷系統】{semLabel}申請已核准" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">信件內容</label>
+              <textarea value={settings.review_approve_body} onChange={e => set('review_approve_body', e.target.value)}
+                rows={12} className={`${inputCls} resize-y`} />
+            </div>
+
+          </div>
+          <EmailPreview subject={settings.review_approve_subject} body={settings.review_approve_body}
+            vars={{ ...SAMPLE_VARS, semLabel: '開學加碼（第1學期）', actionNote: '新上傳的檔案已生效，如有疑問請聯絡承辦人員。', adminNote: '承辦備註：請於本週內完成補件\n\n' }} systemName={String(settings.system_name || '')} />
         </div>
       </div>
 
       {/* 審核拒絕通知 */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
-        <h2 className="font-semibold text-gray-800 border-b pb-2">❌ 審核拒絕通知</h2>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">信件主旨</label>
-          <input value={settings.review_reject_subject} onChange={e => set('review_reject_subject', e.target.value)}
-            className={inputCls} placeholder="【核銷系統】{semLabel}申請未通過" />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">信件內容</label>
-          <textarea value={settings.review_reject_body} onChange={e => set('review_reject_body', e.target.value)}
-            rows={6} className={`${inputCls} resize-none`} />
+        <h2 className="font-semibold text-gray-800 border-b pb-2">審核拒絕通知</h2>
+        <div className="grid lg:grid-cols-2 gap-6">
+          <div className="space-y-4 min-w-0">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">信件主旨</label>
+              <input value={settings.review_reject_subject} onChange={e => set('review_reject_subject', e.target.value)}
+                className={inputCls} placeholder="【核銷系統】{semLabel}申請未通過" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">信件內容</label>
+              <textarea value={settings.review_reject_body} onChange={e => set('review_reject_body', e.target.value)}
+                rows={12} className={`${inputCls} resize-y`} />
+            </div>
+
+          </div>
+          <EmailPreview subject={settings.review_reject_subject} body={settings.review_reject_body}
+            vars={{ ...SAMPLE_VARS, semLabel: '開學加碼（第1學期）', actionNote: '', adminNote: '退回原因：掃描檔缺少校長核章\n\n' }} systemName={String(settings.system_name || '')} />
         </div>
       </div>
 

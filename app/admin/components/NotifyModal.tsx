@@ -75,6 +75,23 @@ export function NotifyModal({ targets, semester, planId, remitApplies, onClose, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 從「編輯範本」分頁回來時重新讀取範本；若內容沒有手動改過，自動換成新範本
+  useEffect(() => {
+    async function onFocus() {
+      if (!settings) return
+      const d = await fetch('/api/admin/settings').then(r => r.json()).catch(() => null)
+      if (!d || d.error) return
+      const before = resolveTemplate(scenario, settings)
+      const after = resolveTemplate(scenario, d)
+      setSettings(d)
+      if (before.subject === subject && before.body === body && (after.subject !== subject || after.body !== body)) {
+        setSubject(after.subject); setBody(after.body); setSaveMsg('已載入更新後的範本')
+      }
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [settings, scenario, subject, body])
+
   // 內容變動後 0.4 秒更新預覽
   useEffect(() => {
     if (previewId === null || !subject) return
@@ -188,7 +205,11 @@ export function NotifyModal({ targets, semester, planId, remitApplies, onClose, 
               )}
 
               <div>
-                <label htmlFor="notify-subject" className="block text-sm font-medium text-gray-700 mb-1">主旨</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="notify-subject" className="block text-sm font-medium text-gray-700">主旨</label>
+                  <a href={`/admin?tab=schools&sub=notify&scenario=${scenario}`} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-blue-600 hover:text-blue-800 hover:underline">編輯「{NOTIFY_SCENARIOS.find(x => x.id === scenario)?.label}」範本 ↗</a>
+                </div>
                 <input id="notify-subject" value={subject} onChange={e => setSubject(e.target.value)} className={inputCls} />
               </div>
               <div>

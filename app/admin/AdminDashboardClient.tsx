@@ -2,6 +2,8 @@
 import { useDialog } from '@/components/DialogProvider'
 import React, { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
+import { useSearchParams } from 'next/navigation'
+import type { NotifyScenarioId } from '@/lib/notifyTemplates'
 import { BlockSpinner } from '@/components/Spinner'
 import type { School, AmountRow, BankRow, SettleRow, ProfileRow, ContactInfo, Plan, PlanAmount } from './types'
 import OverviewTab from './tabs/OverviewTab'
@@ -28,7 +30,18 @@ export default function AdminDashboardClient({
   userRole?: string
 }) {
   const dialog = useDialog()
-  const [tab, setTab] = useState<Tab>('overview')
+  // 支援網址直接開啟指定頁籤，例：/admin?tab=schools&sub=notify&scenario=scan
+  const searchParams = useSearchParams()
+  const TABS: Tab[] = ['overview', 'review', 'accounts', 'schools', 'school_mgmt',
+    ...(userRole === 'super_admin' || userRole === 'zone_admin' ? ['zones' as Tab] : []),
+    ...(userRole === 'super_admin' ? ['settings' as Tab] : [])]
+  const SCENARIOS: NotifyScenarioId[] = ['expense', 'scan', 'remittance', 'custom']
+  const qTab = searchParams.get('tab') as Tab | null
+  const qSub = searchParams.get('sub')
+  const qScenario = searchParams.get('scenario') as NotifyScenarioId | null
+  const [tab, setTab] = useState<Tab>(qTab && TABS.includes(qTab) ? qTab : 'overview')
+  const initialSchoolsSubTab = qTab === 'schools' && (qSub === 'notify' || qSub === 'plans' || qSub === 'amounts') ? qSub : undefined
+  const initialScenario = qScenario && SCENARIOS.includes(qScenario) ? qScenario : undefined
   const [pendingCount, setPendingCount] = useState(0)
   const [overviewKey, setOverviewKey] = useState(0)
   const [tabKeys, setTabKeys] = useState<Record<string, number>>({ review: 0, accounts: 0, schools: 0, school_mgmt: 0, settings: 0 })
@@ -158,12 +171,12 @@ export default function AdminDashboardClient({
         <AccountsTab key={tabKeys.accounts} currentUserEmail={currentUserEmail} isSuperAdmin={isSuperAdmin} />
       )}
       {tab === 'schools' && (
-        <SchoolsTab key={tabKeys.schools} activeSchoolYear={activeSchoolYear} plans={livePlans} isSuperAdmin={isSuperAdmin} onPlansChanged={reloadPlans} />
+        <SchoolsTab key={tabKeys.schools} activeSchoolYear={activeSchoolYear} plans={livePlans} isSuperAdmin={isSuperAdmin} onPlansChanged={reloadPlans} initialSubTab={initialSchoolsSubTab} initialScenario={initialScenario} />
       )}
       {tab === 'school_mgmt' && (
         <SchoolMgmtTab key={tabKeys.school_mgmt} activeSchoolYear={activeSchoolYear} />
       )}
-      {tab === 'settings' && (
+      {tab === 'settings' && isSuperAdmin && (
         <SettingsTab key={tabKeys.settings} activeSchoolYear={activeSchoolYear} handleInitFolders={handleInitFolders} initingFolders={rootInitingFolders} />
       )}
       {tab === 'zones' && isZoneAdmin && (

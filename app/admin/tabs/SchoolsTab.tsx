@@ -4,10 +4,11 @@ import dynamic from 'next/dynamic'
 import { formatAmount } from '@/lib/utils'
 import { Spinner, BlockSpinner } from '@/components/Spinner'
 import type { Plan } from '../types'
+import type { NotifyScenarioId } from '@/lib/notifyTemplates'
 const PlansTab = dynamic(() => import('./PlansTab'), { loading: () => <BlockSpinner /> })
 const NotifyTab = dynamic(() => import('./NotifyTab'), { loading: () => <BlockSpinner /> })
 
-export default function SchoolsTab({ activeSchoolYear, plans, isSuperAdmin, onPlansChanged }: { activeSchoolYear: string; plans: Plan[]; isSuperAdmin: boolean; onPlansChanged?: () => void }) {
+export default function SchoolsTab({ activeSchoolYear, plans, isSuperAdmin, onPlansChanged, initialSubTab, initialScenario }: { activeSchoolYear: string; plans: Plan[]; isSuperAdmin: boolean; onPlansChanged?: () => void; initialSubTab?: 'amounts' | 'plans' | 'notify'; initialScenario?: NotifyScenarioId }) {
   interface SchoolFull { id: number; code: number; district: string; name: string; is_active: boolean; zone_id?: number | null }
   interface ZoneOption { id: number; name: string }
   const [schools, setSchools] = useState<SchoolFull[]>([])
@@ -166,7 +167,7 @@ export default function SchoolsTab({ activeSchoolYear, plans, isSuperAdmin, onPl
     setImporting(false)
   }
 
-  const [subTab, setSubTab] = useState<'amounts' | 'plans' | 'notify'>('plans')
+  const [subTab, setSubTab] = useState<'amounts' | 'plans' | 'notify'>(initialSubTab || 'plans')
 
   const subTabCls = (t: typeof subTab) =>
     `px-4 py-2 text-sm font-medium rounded-lg cursor-pointer transition-colors ${subTab === t ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`
@@ -184,7 +185,7 @@ export default function SchoolsTab({ activeSchoolYear, plans, isSuperAdmin, onPl
       {subTab === 'plans' && <PlansTab activeSchoolYear={activeSchoolYear} isSuperAdmin={isSuperAdmin} onPlansChanged={onPlansChanged} />}
 
       {/* ── 通知信範本 ── */}
-      {subTab === 'notify' && <NotifyTab isSuperAdmin={isSuperAdmin} />}
+      {subTab === 'notify' && <NotifyTab isSuperAdmin={isSuperAdmin} initialScenario={initialScenario} />}
 
       {/* ── 核定金額管理 ── */}
       {subTab === 'amounts' && (
