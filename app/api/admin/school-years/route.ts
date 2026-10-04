@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getAllSettings, writeGlobalSettings } from '@/lib/settings'
+import { getGlobalSettings, writeGlobalSettings } from '@/lib/settings'
 import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
 import * as XLSX from 'xlsx'
@@ -12,7 +12,7 @@ export async function GET() {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
 
-  const settings = await getAllSettings()
+  const settings = await getGlobalSettings()
   const active = settings.active_school_year || settings.school_year || '115'
   const years: string[] = Array.isArray(settings.school_years) && settings.school_years.length
     ? settings.school_years : ['115']
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   if (!zoneUser || !isSuperAdmin(zoneUser)) return NextResponse.json({ error: '僅限超級管理者' }, { status: 403 })
 
   const { action, schoolYear } = await req.json()
-  const settings = await getAllSettings()
+  const settings = await getGlobalSettings()
 
   if (action === 'switch') {
     if (!schoolYear || !/^\d{3}$/.test(schoolYear))

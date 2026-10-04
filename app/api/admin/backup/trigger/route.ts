@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth'
-import { getAllSettings, writeGlobalSettings } from '@/lib/settings'
+import { getGlobalSettings, writeGlobalSettings } from '@/lib/settings'
 import { getGasSettings } from '@/lib/gas'
 import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   const body = await req.json()
   const { enabled, hour, frequency, weekday, settings: newSettings } = body
 
-  const currentSettings = await getAllSettings()
+  const currentSettings = await getGlobalSettings()
   const { gasUrl, gasSecret } = await getGasSettings()
 
   // 只儲存備份相關設定（不把分區合併後的整包設定寫回全域檔）

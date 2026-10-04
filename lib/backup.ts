@@ -1,12 +1,12 @@
 import { supabaseAdmin } from '@/lib/supabase'
-import { getAllSettings, readGlobalSettingsRaw } from '@/lib/settings'
+import { getGlobalSettings, readGlobalSettingsRaw } from '@/lib/settings'
 import { getGasSettings } from '@/lib/gas'
 
 export type BackupType = 'manual' | 'scheduled' | 'school_year'
 
 // ── 共用：查詢所有資料並組裝備份 JSON ───────────────────────────
 export async function buildBackupPayload(type: 'manual' | 'scheduled' | 'school_year') {
-  const [settings, globalSettings] = await Promise.all([getAllSettings(), readGlobalSettingsRaw()])
+  const [settings, globalSettings] = await Promise.all([getGlobalSettings(), readGlobalSettingsRaw()])
 
   const [
     { data: schools },
@@ -64,7 +64,7 @@ async function gasNotify(gasUrl: string, gasSecret: string, to: string, subject:
 // 執行一次備份（手動、定時、測試通知共用）。notify：scheduled 寄完成/失敗通知、test 寄測試信
 export async function runBackup(opts: { type: BackupType; notify: 'none' | 'scheduled' | 'test' }): Promise<{ status: number; body: Record<string, unknown> }> {
   const { type, notify } = opts
-  const settings = await getAllSettings()
+  const settings = await getGlobalSettings()
   const { gasUrl, gasSecret } = await getGasSettings()
   const backupFolderId = settings.backup_folder_id as string
 

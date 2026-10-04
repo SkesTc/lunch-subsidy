@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { getEffectiveSchoolId } from '@/lib/impersonate'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getAllSettings } from '@/lib/settings'
+import { getGlobalSettings } from '@/lib/settings'
 import { NextResponse } from 'next/server'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
 import { writeLog } from '@/lib/operationLog'
@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   if (!schoolId) return NextResponse.json(null)
   const { searchParams } = new URL(req.url)
   const semester = Number(searchParams.get('semester'))
-  const { active_school_year, school_year } = await getAllSettings()
+  const { active_school_year, school_year } = await getGlobalSettings()
   const schoolYear = (active_school_year || school_year || '115') as string
   const { data } = await supabaseAdmin
     .from('settlements').select('id, school_id, semester, school_year, status, business_expense, total_expense, surplus, repay_amount, scan_file_path, remittance_file_path, remittance_date, amount_locked, updated_at')
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const { semester, personnel_expense, business_expense, equipment_expense, plan_id } = body
-  const { active_school_year, school_year } = await getAllSettings()
+  const { active_school_year, school_year } = await getGlobalSettings()
   const schoolYear = (active_school_year || school_year || '115') as string
 
   let A = 0

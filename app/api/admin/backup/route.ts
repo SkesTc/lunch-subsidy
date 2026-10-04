@@ -1,5 +1,5 @@
 import { auth } from '@/lib/auth'
-import { getAllSettings } from '@/lib/settings'
+import { getGlobalSettings } from '@/lib/settings'
 import { getGasSettings } from '@/lib/gas'
 import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
 import { NextResponse } from 'next/server'
@@ -36,7 +36,7 @@ export async function GET() {
   const session = await auth()
   if (!session?.user?.is_admin) return NextResponse.json({ error: '無權限' }, { status: 403 })
 
-  const settings = await getAllSettings()
+  const settings = await getGlobalSettings()
   const { gasUrl, gasSecret } = await getGasSettings()
   const backupFolderId = settings.backup_folder_id as string
 

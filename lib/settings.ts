@@ -4,9 +4,6 @@ import { getZoneSettings } from '@/lib/zones'
 const BUCKET = 'settlement-files'
 const PATH = '__system/settings.json'
 
-// 預設區別 ID（第2區），未來從 request context 取得
-const DEFAULT_ZONE_ID = 2
-
 export interface AllSettings {
   system_name: string
   host_school: string
@@ -72,11 +69,16 @@ export const DEFAULTS: AllSettings = {
   block3_deadline: '2026-06-30',
 }
 
-// 模組層級快取，TTL 60 秒（依 zoneId 分開快取）
+// 模組層級快取，TTL 8 秒（依 zoneId 分開快取；全域設定使用 GLOBAL_CACHE_KEY）
 const _cacheMap = new Map<number, { data: AllSettings; ts: number }>()
 const TTL = 8_000
+const GLOBAL_CACHE_KEY = -1
 
-async function fetchSettings(zoneId = DEFAULT_ZONE_ID): Promise<AllSettings> {
+function stripZoneKeys(obj: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(obj).filter(([k]) => !isZoneKey(k)))
+}
+
+async function fetchSettings(zoneId: number): Promise<AllSettings> {
   try {
     // 讀取 zone 基本資訊（host_school 存在 zones 表）
     const { data: zoneRow } = await supabaseAdmin
@@ -92,12 +94,8 @@ async function fetchSettings(zoneId = DEFAULT_ZONE_ID): Promise<AllSettings> {
     const zoneSettingsData = await getZoneSettings(zoneId)
     const hasZoneSettings = Object.keys(zoneSettingsData).length > 0
 
-    // 也讀 settings.json 取得 school_years 等複雜結構
-    let jsonSettings: Partial<AllSettings> = {}
-    try {
-      const { data } = await supabaseAdmin.storage.from(BUCKET).download(PATH)
-      if (data) jsonSettings = JSON.parse(await data.text())
-    } catch { /* 忽略 */ }
+    // 全域設定（去除分區欄位：分區欄位留空時用預設值，不回退到全域檔）
+    const jsonSettings = stripZoneKeys(await readGlobalSettingsRaw()) as Partial<AllSettings>
 
     if (hasZoneSettings || zoneRow) {
       const filtered = Object.fromEntries(
@@ -118,8 +116,17 @@ async function fetchSettingsForZone(zoneId: number): Promise<AllSettings> {
   return fetchSettings(zoneId)
 }
 
-/** 統一入口：所有設定從這裡取，快取 */
-export async function getAllSettings(zoneId = DEFAULT_ZONE_ID): Promise<AllSettings> {
+/** 全域設定（不含任何分區值）：學年度、GAS、範本、備份等全系統共用欄位 */
+export async function getGlobalSettings(): Promise<AllSettings> {
+  const cached = _cacheMap.get(GLOBAL_CACHE_KEY)
+  if (cached && Date.now() - cached.ts < TTL) return cached.data
+  const data = { ...DEFAULTS, ...stripZoneKeys(await readGlobalSettingsRaw()) } as AllSettings
+  _cacheMap.set(GLOBAL_CACHE_KEY, { data, ts: Date.now() })
+  return data
+}
+
+/** 指定分區的完整設定（全域設定 + 該分區欄位），快取 */
+export async function getAllSettings(zoneId: number): Promise<AllSettings> {
   const cached = _cacheMap.get(zoneId)
   if (cached && Date.now() - cached.ts < TTL) return cached.data
   const data = await fetchSettings(zoneId)
@@ -132,16 +139,9 @@ export async function getSettingsForZone(zoneId: number): Promise<AllSettings> {
   return fetchSettingsForZone(zoneId)
 }
 
-/** 直接讀 settings.json 的系統名稱（不受分區覆蓋影響） */
+/** 全域系統名稱（不受分區覆蓋影響） */
 export async function getGlobalSystemName(): Promise<string> {
-  try {
-    const { data } = await supabaseAdmin.storage.from(BUCKET).download(PATH)
-    if (data) {
-      const parsed = JSON.parse(await data.text())
-      if (parsed.system_name) return parsed.system_name
-    }
-  } catch { /* ignore */ }
-  return DEFAULTS.system_name
+  return String((await getGlobalSettings()).system_name || DEFAULTS.system_name)
 }
 
 // 分區專屬欄位：由「區別管理」維護（zones 表 / zone_settings），不屬於全域設定檔
@@ -187,20 +187,20 @@ export function invalidateSettingsCache() {
 
 // ── 向下相容的具名 exports ──────────────────────────────────
 export async function getSystemSettings() {
-  return getAllSettings()
+  return getGlobalSettings()
 }
 
 export async function getActiveSchoolYear(): Promise<string> {
-  const s = await getAllSettings()
+  const s = await getGlobalSettings()
   return s.active_school_year || s.school_year || '115'
 }
 
 export async function getSchoolYears(): Promise<string[]> {
-  const s = await getAllSettings()
+  const s = await getGlobalSettings()
   return Array.isArray(s.school_years) && s.school_years.length > 0 ? s.school_years : ['115']
 }
 
 export async function getGasSettings() {
-  const s = await getAllSettings()
+  const s = await getGlobalSettings()
   return { gasUrl: s.gas_url || '', gasSecret: s.gas_secret || '', driveFolderId: s.drive_folder_id || '' }
 }

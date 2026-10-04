@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getAllSettings } from '@/lib/settings'
+import { getGlobalSettings } from '@/lib/settings'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request) {
@@ -8,7 +8,7 @@ export async function GET(req: Request) {
   if (!session?.user?.school_id) return NextResponse.json(null)
   const { searchParams } = new URL(req.url)
   const semester = Number(searchParams.get('semester'))
-  const { active_school_year, school_year } = await getAllSettings()
+  const { active_school_year, school_year } = await getGlobalSettings()
   const schoolYear = (active_school_year || school_year || '115') as string
 
   const { data } = await supabaseAdmin
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const { semester, bank_name, branch_name, bank_code, account_name, account_number, contact_name, contact_phone } = body
-  const { active_school_year, school_year } = await getAllSettings()
+  const { active_school_year, school_year } = await getGlobalSettings()
   const schoolYear = (active_school_year || school_year || '115') as string
 
   const { data: existing } = await supabaseAdmin

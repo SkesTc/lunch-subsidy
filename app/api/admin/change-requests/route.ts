@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getActiveSchoolYear, getAllSettings, getSettingsForZone, getGlobalSystemName } from '@/lib/settings'
+import { getActiveSchoolYear, getGlobalSettings, getSettingsForZone, getGlobalSystemName } from '@/lib/settings'
 import { getGasSettings, gasDeleteFile, gasMoveToTrash, gasRenameFile } from '@/lib/gas'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
 import { wrapEmailHtml } from '@/lib/email-html'
@@ -138,7 +138,7 @@ export async function PATCH(req: Request) {
   const [{ data: cr }, schoolYear, globalSettings] = await Promise.all([
     supabaseAdmin.from('change_requests').select('*, schools(name)').eq('id', id).single(),
     getActiveSchoolYear(),
-    getAllSettings(),
+    getGlobalSettings(),
   ])
   if (!cr) return NextResponse.json({ error: '找不到申請' }, { status: 404 })
   if (cr.status !== 'pending') return NextResponse.json({ error: '已審核' }, { status: 409 })

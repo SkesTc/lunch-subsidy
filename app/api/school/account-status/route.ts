@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { getEffectiveSchoolId } from '@/lib/impersonate'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getAllSettings } from '@/lib/settings'
+import { getGlobalSettings } from '@/lib/settings'
 import { NextResponse } from 'next/server'
 
 const BUCKET = 'settlement-files'
@@ -16,7 +16,7 @@ export async function GET() {
   const schoolId = await getEffectiveSchoolId(session)
   if (!schoolId) return NextResponse.json({ error: '未綁定學校' }, { status: 401 })
 
-  const settings = await getAllSettings()
+  const settings = await getGlobalSettings()
   const schoolYear = (settings.active_school_year || settings.school_year || '115') as string
 
   // 一次 auth + 一次 schoolYear → 兩個查詢並行

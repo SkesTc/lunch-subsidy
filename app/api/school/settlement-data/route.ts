@@ -1,7 +1,7 @@
 import { auth } from '@/lib/auth'
 import { getEffectiveSchoolId } from '@/lib/impersonate'
 import { supabaseAdmin } from '@/lib/supabase'
-import { getAllSettings } from '@/lib/settings'
+import { getGlobalSettings } from '@/lib/settings'
 import { NextResponse } from 'next/server'
 
 /**
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   const semester = Number(searchParams.get('semester') || '1')
   const planId = searchParams.get('plan_id') || null
 
-  const settings = await getAllSettings()
+  const settings = await getGlobalSettings()
   const schoolYear = (settings.active_school_year || settings.school_year || '115') as string
 
   const settlementQuery = planId
