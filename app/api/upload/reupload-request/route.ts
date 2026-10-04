@@ -5,7 +5,7 @@ import { getGasSettings, gasUploadFile } from '@/lib/gas'
 import { getActiveSchoolYear } from '@/lib/schoolYear'
 import { writeLog } from '@/lib/operationLog'
 import { NextResponse } from 'next/server'
-import { isPlanOpen, PLAN_CLOSED_MESSAGE } from '@/lib/planOpen'
+import { isSubmissionOpen, PLAN_CLOSED_MESSAGE } from '@/lib/planOpen'
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const type = fd.get('type') as string
   const reason = (fd.get('reason') as string)?.trim()
   const planId = (fd.get('plan_id') as string | null) || null
-  if (!(await isPlanOpen(planId))) return NextResponse.json({ error: PLAN_CLOSED_MESSAGE }, { status: 403 })
+  if (!(await isSubmissionOpen(planId, semester))) return NextResponse.json({ error: PLAN_CLOSED_MESSAGE }, { status: 403 })
 
   if (!file || !semester || !type || !reason) {
     return NextResponse.json({ error: '資料不完整，請選擇檔案並填寫原因' }, { status: 400 })

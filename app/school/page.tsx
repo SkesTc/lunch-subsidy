@@ -357,7 +357,7 @@ export default async function SchoolDashboard() {
               label="第1學期末"
               color="sky"
               deadline={`結算截止：${settings.block2_deadline}`}
-              disabled={settings.block2_open === 'false'}
+              readOnly={settings.block2_open === 'false'}
               steps={[
                 {
                   label: '填寫實支金額並下載經費收支結算表',
@@ -378,7 +378,7 @@ export default async function SchoolDashboard() {
               label="第2學期末"
               color="indigo"
               deadline={`截止：${settings.block3_deadline}`}
-              disabled={settings.block3_open === 'false'}
+              readOnly={settings.block3_open === 'false'}
               steps={[
                 {
                   label: '填寫實支金額並下載經費收支結算表',
@@ -457,7 +457,7 @@ function PeriodCard({ label, color, deadline, disabled, readOnly, steps }: {
   color: 'blue' | 'sky' | 'indigo'
   deadline: string
   disabled?: boolean
-  readOnly?: boolean   // 已關閉送件：仍顯示步驟供查看，但不可修改
+  readOnly?: boolean   // 未開放送件：仍顯示步驟供查看，但不可修改
   steps: { label: string; done: boolean; pending?: boolean; href: string; desc: string; optional?: boolean }[]
 }) {
   const headerColor = disabled ? 'bg-gray-400' : readOnly ? 'bg-slate-500' : {
@@ -471,7 +471,7 @@ function PeriodCard({ label, color, deadline, disabled, readOnly, steps }: {
     <div className={disabled ? 'opacity-60' : ''}>
       <div className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 ${headerColor} text-white text-sm font-bold px-4 py-2 rounded-t-xl`}>
         <span>{label}</span>
-        <span className="text-xs font-normal opacity-90">{disabled ? '暫未開放' : readOnly ? '已關閉送件・僅供檢視' : deadline}</span>
+        <span className="text-xs font-normal opacity-90">{disabled ? '暫未開放' : readOnly ? '目前未開放送件・僅供檢視' : deadline}</span>
       </div>
       <div className="bg-white rounded-b-2xl shadow-sm border border-gray-100 p-4 space-y-2">
         {disabled ? (

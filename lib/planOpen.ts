@@ -1,10 +1,14 @@
 import { supabaseAdmin } from '@/lib/supabase'
+import { getGlobalSettings } from '@/lib/settings'
 
-export const PLAN_CLOSED_MESSAGE = '本計畫已關閉送件，資料僅供檢視；如需修改請聯絡承辦人員'
+export const PLAN_CLOSED_MESSAGE = '目前未開放送件，資料僅供檢視；如需修改請聯絡承辦人員'
 
-// 計畫是否開放送件（未指定計畫的學期制一律視為開放，沿用原本的期程設定）
-export async function isPlanOpen(planId: string | null | undefined): Promise<boolean> {
-  if (!planId) return true
-  const { data } = await supabaseAdmin.from('plans').select('is_open').eq('id', planId).maybeSingle()
-  return data?.is_open === true
+// 是否開放送件：計畫模式看該計畫的開關；學期模式看系統設定的期程開關（第1學期末 block2、第2學期末 block3）
+export async function isSubmissionOpen(planId: string | null | undefined, semester: number | string | null | undefined): Promise<boolean> {
+  if (planId) {
+    const { data } = await supabaseAdmin.from('plans').select('is_open').eq('id', planId).maybeSingle()
+    return data?.is_open === true
+  }
+  const s = await getGlobalSettings()
+  return Number(semester) === 2 ? s.block3_open !== 'false' : s.block2_open !== 'false'
 }
