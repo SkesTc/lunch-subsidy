@@ -651,7 +651,13 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
           </tbody>
         </table>
         {semSchools.length === 0 && (
-          <p className="text-center text-gray-400 text-sm py-8">無符合條件的學校</p>
+          <div className="text-center py-10 space-y-2">
+            <p className="text-sm text-gray-500">沒有符合目前篩選條件的學校</p>
+            <button onClick={() => {
+              setSearch(''); setDistrictFilter(''); setZoneFilter(null)
+              setBindFilter('all'); setScanFilter('all'); setRemitFilter('all'); setExpenseFilter('all')
+            }} className="text-sm text-blue-600 hover:text-blue-800 underline cursor-pointer">清除所有篩選</button>
+          </div>
         )}
       </div>
 

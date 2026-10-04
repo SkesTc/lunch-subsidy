@@ -1,4 +1,5 @@
 'use client'
+import LoadingSpinner from '@/components/LoadingSpinner'
 import { StatusChip } from '@/components/StatusChip'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
@@ -90,11 +91,7 @@ export default function UploadPage() {
 
   const viewUrl = existingPath ? fileViewUrl(existingPath) : null
 
-  if (statusLoading) return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <span className="w-8 h-8 border-2 border-gray-200 border-t-blue-600 rounded-full animate-spin" />
-    </div>
-  )
+  if (statusLoading) return <LoadingSpinner />
 
   return (
     <div className="min-h-screen bg-gray-50">
