@@ -24,6 +24,8 @@ interface BackupSettings {
 }
 
 const SCOPE_LABELS: Record<string, string> = {
+  zones: '分區清單',
+  zone_settings: '分區設定（承辦人、截止說明等）',
   schools: '學校清單',
   plans: '核銷計畫',
   plan_amounts: '計畫核定金額',

@@ -17,6 +17,8 @@ export async function buildBackupPayload(type: 'manual' | 'scheduled' | 'school_
     { data: bankAccounts },
     { data: changeRequests },
     { data: userProfiles },
+    { data: zones },
+    { data: zoneSettings },
   ] = await Promise.all([
     supabaseAdmin.from('schools').select('*').order('code'),
     supabaseAdmin.from('plans').select('*').order('sort_order'),
@@ -26,10 +28,12 @@ export async function buildBackupPayload(type: 'manual' | 'scheduled' | 'school_
     supabaseAdmin.from('bank_accounts').select('*'),
     supabaseAdmin.from('change_requests').select('*').order('created_at'),
     supabaseAdmin.from('user_profiles').select('*'),
+    supabaseAdmin.from('zones').select('*').order('id'),
+    supabaseAdmin.from('zone_settings').select('*').order('id'),
   ])
 
   return {
-    version: '1.1',
+    version: '1.2',
     type,
     created_at: new Date().toISOString(),
     system_name: settings.system_name || '',
@@ -42,6 +46,8 @@ export async function buildBackupPayload(type: 'manual' | 'scheduled' | 'school_
       bank_accounts: bankAccounts || [],
       change_requests: changeRequests || [],
       user_profiles: userProfiles || [],
+      zones: zones || [],
+      zone_settings: zoneSettings || [],
     },
     settings: globalSettings,
   }

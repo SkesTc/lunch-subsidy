@@ -37,6 +37,8 @@ export async function POST(req: Request) {
   const errors: string[] = []
 
   const tableMap: Record<string, string> = {
+    zones: 'zones',
+    zone_settings: 'zone_settings',
     schools: 'schools',
     plans: 'plans',
     plan_amounts: 'plan_amounts',
@@ -47,7 +49,9 @@ export async function POST(req: Request) {
     user_profiles: 'user_profiles',
   }
 
-  for (const scope of scopes) {
+  // 依外鍵相依順序還原：分區 → 學校／計畫 → 其餘資料
+  const orderedScopes = Object.keys(tableMap).filter(k => scopes.includes(k))
+  for (const scope of orderedScopes) {
     const table = tableMap[scope]
     if (!table || !data[scope]?.length) continue
     try {
