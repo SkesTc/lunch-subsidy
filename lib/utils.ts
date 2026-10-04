@@ -14,9 +14,9 @@ export function calcSurplus(a: number, d: number): number {
   return a - d
 }
 
-// 應繳回金額（無條件進位）
+// 應繳回金額（無條件進位）。比率取至小數第 4 位，先轉成整數相乘，避免浮點誤差（如 100×0.07=7.000000000000001）多進位 1 元
 export function calcRepay(e: number, c: number): number {
-  return Math.ceil(e * c)
+  return Math.ceil((e * Math.round(c * 10000)) / 10000)
 }
 
 // 7碼金融機構代碼驗證
@@ -58,7 +58,7 @@ export function toChineseAmount(n: number): string {
   let result = ''
   if (yi > 0) {
     result += section(yi) + '億'
-    if (wan < 1000 && wan > 0) result += '零'
+    if (wan > 0 ? wan < 1000 : rest > 0) result += '零'
   }
   if (wan > 0) {
     result += section(wan) + '萬'

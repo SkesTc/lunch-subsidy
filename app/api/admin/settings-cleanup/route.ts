@@ -1,7 +1,8 @@
 import { auth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
-import { DEFAULTS, ZONE_KEYS, getSettingsForZone, readGlobalSettingsRaw, replaceGlobalSettingsRaw } from '@/lib/settings'
+import { DEFAULTS, getSettingsForZone, readGlobalSettingsRaw, replaceGlobalSettingsRaw } from '@/lib/settings'
+import { ZONE_KEYS } from '@/lib/settingsKeys'
 import { getUserZoneRole, isSuperAdmin } from '@/lib/zones'
 
 // 已無程式讀取的舊版學期制欄位

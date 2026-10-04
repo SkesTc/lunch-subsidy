@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase'
 import { getZoneSettings } from '@/lib/zones'
+import { stripZoneKeys, filterGlobalUpdates } from '@/lib/settingsKeys'
 
 const BUCKET = 'settlement-files'
 const PATH = '__system/settings.json'
@@ -74,10 +75,6 @@ const _cacheMap = new Map<number, { data: AllSettings; ts: number }>()
 const TTL = 8_000
 const GLOBAL_CACHE_KEY = -1
 
-function stripZoneKeys(obj: Record<string, unknown>) {
-  return Object.fromEntries(Object.entries(obj).filter(([k]) => !isZoneKey(k)))
-}
-
 async function fetchSettings(zoneId: number): Promise<AllSettings> {
   try {
     // 讀取 zone 基本資訊（host_school 存在 zones 表）
@@ -144,9 +141,6 @@ export async function getGlobalSystemName(): Promise<string> {
   return String((await getGlobalSettings()).system_name || DEFAULTS.system_name)
 }
 
-// 分區專屬欄位：由「區別管理」維護（zones 表 / zone_settings），不屬於全域設定檔
-export const ZONE_KEYS = ['host_school', 'admin_name', 'admin_title', 'admin_phone', 'block1_open', 'block1_deadline'] as const
-const isZoneKey = (k: string) => (ZONE_KEYS as readonly string[]).includes(k)
 
 /** 讀取全域設定檔原始內容（不疊加預設值與分區設定） */
 export async function readGlobalSettingsRaw(): Promise<Record<string, unknown>> {
@@ -162,9 +156,7 @@ export async function readGlobalSettingsRaw(): Promise<Record<string, unknown>> 
  * 分區欄位只允許清空（寫入空字串），避免分區值滲入全域檔後在其他分區留空時「冒出來」。
  */
 export async function writeGlobalSettings(updates: Record<string, unknown>) {
-  const filtered = Object.fromEntries(
-    Object.entries(updates).filter(([k, v]) => !isZoneKey(k) || v === '')
-  )
+  const filtered = filterGlobalUpdates(updates)
   const raw = await readGlobalSettingsRaw()
   const blob = new Blob([JSON.stringify({ ...raw, ...filtered }, null, 2)], { type: 'application/json' })
   const { error } = await supabaseAdmin.storage.from(BUCKET).upload(PATH, blob, { upsert: true, contentType: 'application/json' })
