@@ -63,7 +63,7 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
       require_repay: p.require_repay, deduct_s1_repay: p.deduct_s1_repay ?? false,
       sort_order: p.sort_order, is_active: p.is_active, deadline: p.deadline || '',
       is_open: p.is_open ?? false, open_note: p.open_note || '', status: planStatusOf(p), semester_status: semesterStatusesOf(p) ?? {},
-      zone_ids: [...new Set((p.zone_ids || (p.zone_id ? [p.zone_id] : [])).map(Number))],
+      zone_ids: [...new Set((p.zone_ids || (p.zone_id ? [p.zone_id] : [])).map(Number))].filter(id => zones.length === 0 || zones.some(z => Number(z.id) === id)),
     })
     setMsg(''); setShowModal(true)
   }
@@ -173,7 +173,9 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
   const zoneNames = (ids: number[]) => {
     if (!ids || ids.length === 0) return '—'
     // 舊資料可能混有文字格式或重複的分區代碼，先統一成數字並去重
-    return [...new Set(ids.map(Number))].map(id => zones.find(z => z.id === id)?.name || `#${id}`).join('、')
+    // 已不存在的分區不顯示
+    const names = [...new Set(ids.map(Number))].map(id => zones.find(z => Number(z.id) === id)?.name).filter(Boolean)
+    return names.length ? names.join('、') : '—'
   }
 
   return (
@@ -214,15 +216,15 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="w-10 px-2 py-3"><span className="sr-only">排序</span></th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">計畫名稱</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">短標籤</th>
-                {isSuperAdmin && <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">適用區別</th>}
-                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">學期</th>
-                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">繳回賸餘款</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">截止說明</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">送件狀態</th>
-                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">啟用</th>
-                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">操作</th>
+                <th className="text-left px-3 py-3 text-gray-600 font-medium whitespace-nowrap">計畫名稱</th>
+                <th className="text-left px-3 py-3 text-gray-600 font-medium whitespace-nowrap">短標籤</th>
+                {isSuperAdmin && <th className="text-left px-3 py-3 text-gray-600 font-medium whitespace-nowrap">適用區別</th>}
+                <th className="text-center px-3 py-3 text-gray-600 font-medium whitespace-nowrap">學期</th>
+                <th className="text-center px-3 py-3 text-gray-600 font-medium whitespace-nowrap">繳回賸餘款</th>
+                <th className="text-left px-3 py-3 text-gray-600 font-medium whitespace-nowrap">截止說明</th>
+                <th className="text-left px-3 py-3 text-gray-600 font-medium whitespace-nowrap">送件狀態</th>
+                <th className="text-center px-3 py-3 text-gray-600 font-medium whitespace-nowrap">啟用</th>
+                <th className="text-center px-3 py-3 text-gray-600 font-medium whitespace-nowrap sticky right-0 bg-gray-50 shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.12)]">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -239,7 +241,7 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
                     if (dragId && dropTarget) moveTo(dragId, dropTarget.id, dropTarget.after)
                     setDragId(null); setDropTarget(null)
                   }}
-                  className={`hover:bg-gray-50 ${!p.is_active ? 'opacity-50' : ''} ${dragId === p.id ? 'opacity-40' : ''} ${
+                  className={`group hover:bg-gray-50 ${!p.is_active ? 'opacity-50' : ''} ${dragId === p.id ? 'opacity-40' : ''} ${
                     dropTarget?.id === p.id && dragId !== p.id ? (dropTarget.after ? 'shadow-[inset_0_-2px_0_0_#2563eb]' : 'shadow-[inset_0_2px_0_0_#2563eb]') : ''}`}>
                   <td className="px-2 py-3 text-center">
                     <button id={`plan-handle-${p.id}`} type="button" draggable
@@ -256,27 +258,27 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
                       </svg>
                     </button>
                   </td>
-                  <td className="px-4 py-3 font-medium text-gray-800 min-w-[14rem]">{p.name}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3 font-medium text-gray-800 min-w-[11rem]">{p.name}</td>
+                  <td className="px-3 py-3">
                     <span className={`${CHIP} bg-blue-50 text-blue-700 ring-blue-600/20`}>{p.label}</span>
                   </td>
                   {isSuperAdmin && (
-                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                    <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
                       {zoneNames(p.zone_ids || (p.zone_id ? [p.zone_id] : []))}
                     </td>
                   )}
-                  <td className="px-4 py-3 text-center text-gray-600 whitespace-nowrap">{semLabel(p.semester)}</td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-3 py-3 text-center text-gray-600 whitespace-nowrap">{semLabel(p.semester)}</td>
+                  <td className="px-3 py-3 text-center">
                     {p.require_repay
                       ? <span className={`${CHIP} bg-amber-50 text-amber-800 ring-amber-600/25`}>須繳回</span>
                       : <span className={`${CHIP} bg-gray-50 text-gray-500 ring-gray-400/30`}>無須繳回</span>}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs min-w-[8rem]">{p.deadline || '—'}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3 text-gray-500 text-xs min-w-[7rem]">{p.deadline || '—'}</td>
+                  <td className="px-3 py-3">
                     <div className="flex flex-col gap-1.5">
                       {(p.semester == null ? [1, 2] : [p.semester]).map(sem => (
                         <div key={sem} className="flex items-center gap-2">
-                          <span className="w-14 text-xs text-gray-400 whitespace-nowrap">第{sem}學期</span>
+                          <span className="w-12 text-xs text-gray-400 whitespace-nowrap">第{sem}學期</span>
                           <PlanStatusSwitch value={planStatusOf(p, p.semester == null ? sem : undefined)}
                             onChange={st => setStatus(p, st, p.semester == null ? sem : undefined)}
                             label={`${p.label || p.name}第${sem}學期送件狀態`} />
@@ -284,14 +286,14 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
                       ))}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-center">
+                  <td className="px-3 py-3 text-center">
                     <button onClick={() => toggleActive(p)} title={p.is_active ? '點擊停用' : '點擊啟用'}
                       className={`${CHIP} gap-1.5 cursor-pointer ${p.is_active ? 'bg-green-50 text-green-700 ring-green-600/20 hover:bg-green-100' : 'bg-gray-50 text-gray-500 ring-gray-400/30 hover:bg-gray-100'}`}>
                       <span className={`h-1.5 w-1.5 rounded-full ${p.is_active ? 'bg-green-500' : 'bg-gray-300'}`} aria-hidden />
                       {p.is_active ? '啟用中' : '已停用'}
                     </button>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 py-3 sticky right-0 bg-white group-hover:bg-gray-50 shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.12)]">
                     <div className="flex gap-1.5 justify-center whitespace-nowrap">
                       <button onClick={() => openEdit(p)} className="text-xs px-2.5 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer">編輯</button>
                       <button onClick={() => setDeleteTarget(p)} className="text-xs px-2.5 py-1 rounded-lg text-red-600 hover:bg-red-50 cursor-pointer">刪除</button>
@@ -452,7 +454,7 @@ function PlanStatusSwitch({ value, onChange, label }: { value: PlanStatus; onCha
     <div role="radiogroup" aria-label={label} className="inline-flex rounded-lg bg-gray-100 p-0.5 text-xs">
       {PLAN_STATUSES.map(st => (
         <button key={st} type="button" role="radio" aria-checked={value === st} onClick={() => onChange(st)}
-          className={`px-2.5 py-1 rounded-md font-medium whitespace-nowrap cursor-pointer transition-colors ${value === st ? STATUS_ACTIVE[st] : 'text-gray-500 hover:text-gray-800'}`}>
+          className={`px-2 py-1 rounded-md font-medium whitespace-nowrap cursor-pointer transition-colors ${value === st ? STATUS_ACTIVE[st] : 'text-gray-500 hover:text-gray-800'}`}>
           {PLAN_STATUS_LABELS[st]}
         </button>
       ))}
