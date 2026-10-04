@@ -5,6 +5,7 @@ import { fetchFileBytes } from '@/lib/driveFile'
 export async function GET(req: Request) {
   const session = await auth()
   if (!session?.user?.email) return NextResponse.json({ error: '未登入' }, { status: 401 })
+  if (!session.user.is_admin) return NextResponse.json({ error: '權限不足' }, { status: 403 })
 
   const { searchParams } = new URL(req.url)
   const fileId = searchParams.get('fileId')
