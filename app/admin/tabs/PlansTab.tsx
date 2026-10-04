@@ -63,7 +63,7 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
       require_repay: p.require_repay, deduct_s1_repay: p.deduct_s1_repay ?? false,
       sort_order: p.sort_order, is_active: p.is_active, deadline: p.deadline || '',
       is_open: p.is_open ?? false, open_note: p.open_note || '', status: planStatusOf(p), semester_status: semesterStatusesOf(p) ?? {},
-      zone_ids: p.zone_ids || (p.zone_id ? [p.zone_id] : []),
+      zone_ids: [...new Set((p.zone_ids || (p.zone_id ? [p.zone_id] : [])).map(Number))],
     })
     setMsg(''); setShowModal(true)
   }
@@ -172,7 +172,8 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
   const semLabel = (s: number | null) => s === 1 ? '第1學期' : s === 2 ? '第2學期' : '全年'
   const zoneNames = (ids: number[]) => {
     if (!ids || ids.length === 0) return '—'
-    return ids.map(id => zones.find(z => z.id === id)?.name || `#${id}`).join('、')
+    // 舊資料可能混有文字格式或重複的分區代碼，先統一成數字並去重
+    return [...new Set(ids.map(Number))].map(id => zones.find(z => z.id === id)?.name || `#${id}`).join('、')
   }
 
   return (
@@ -208,20 +209,20 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
           <span>拖曳列表左側的 ⋮⋮ 可調整計畫順序，學校端與總覽會依此順序顯示。</span>
           {orderMsg && <span className={orderMsg.startsWith('已') ? 'text-green-600' : 'text-gray-400'}>{orderMsg}</span>}
         </p>
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
                 <th className="w-10 px-2 py-3"><span className="sr-only">排序</span></th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">計畫名稱</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">短標籤</th>
-                {isSuperAdmin && <th className="text-left px-4 py-3 text-gray-600 font-medium">適用區別</th>}
-                <th className="text-center px-4 py-3 text-gray-600 font-medium">學期</th>
-                <th className="text-center px-4 py-3 text-gray-600 font-medium">繳回賸餘款</th>
-                <th className="text-left px-4 py-3 text-gray-600 font-medium">截止說明</th>
-                <th className="text-center px-4 py-3 text-gray-600 font-medium">送件狀態</th>
-                <th className="text-center px-4 py-3 text-gray-600 font-medium">啟用</th>
-                <th className="text-center px-4 py-3 text-gray-600 font-medium">操作</th>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">計畫名稱</th>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">短標籤</th>
+                {isSuperAdmin && <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">適用區別</th>}
+                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">學期</th>
+                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">繳回賸餘款</th>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">截止說明</th>
+                <th className="text-left px-4 py-3 text-gray-600 font-medium whitespace-nowrap">送件狀態</th>
+                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">啟用</th>
+                <th className="text-center px-4 py-3 text-gray-600 font-medium whitespace-nowrap">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -255,46 +256,45 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
                       </svg>
                     </button>
                   </td>
-                  <td className="px-4 py-3 font-medium text-gray-800">{p.name}</td>
+                  <td className="px-4 py-3 font-medium text-gray-800 min-w-[14rem]">{p.name}</td>
                   <td className="px-4 py-3">
-                    <span className="font-mono text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded">{p.label}</span>
+                    <span className={`${CHIP} bg-blue-50 text-blue-700 ring-blue-600/20`}>{p.label}</span>
                   </td>
                   {isSuperAdmin && (
-                    <td className="px-4 py-3 text-xs text-gray-500">
+                    <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
                       {zoneNames(p.zone_ids || (p.zone_id ? [p.zone_id] : []))}
                     </td>
                   )}
-                  <td className="px-4 py-3 text-center text-gray-600">{semLabel(p.semester)}</td>
+                  <td className="px-4 py-3 text-center text-gray-600 whitespace-nowrap">{semLabel(p.semester)}</td>
                   <td className="px-4 py-3 text-center">
                     {p.require_repay
-                      ? <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">須繳回</span>
-                      : <span className="text-xs bg-gray-100 text-gray-400 px-2 py-0.5 rounded-full">無須繳回</span>}
+                      ? <span className={`${CHIP} bg-amber-50 text-amber-800 ring-amber-600/25`}>須繳回</span>
+                      : <span className={`${CHIP} bg-gray-50 text-gray-500 ring-gray-400/30`}>無須繳回</span>}
                   </td>
-                  <td className="px-4 py-3 text-gray-500 text-xs">{p.deadline || '—'}</td>
-                  <td className="px-4 py-3 text-center">
-                    {p.semester == null ? (
-                      <div className="inline-flex flex-col items-end gap-1">
-                        {[1, 2].map(sem => (
-                          <div key={sem} className="flex items-center gap-1.5">
-                            <span className="text-[11px] text-gray-400">第{sem}學期</span>
-                            <PlanStatusSwitch value={planStatusOf(p, sem)} onChange={st => setStatus(p, st, sem)} label={`${p.label || p.name}第${sem}學期送件狀態`} />
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <PlanStatusSwitch value={planStatusOf(p)} onChange={st => setStatus(p, st)} label={`${p.label || p.name}送件狀態`} />
-                    )}
+                  <td className="px-4 py-3 text-gray-500 text-xs min-w-[8rem]">{p.deadline || '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1.5">
+                      {(p.semester == null ? [1, 2] : [p.semester]).map(sem => (
+                        <div key={sem} className="flex items-center gap-2">
+                          <span className="w-14 text-xs text-gray-400 whitespace-nowrap">第{sem}學期</span>
+                          <PlanStatusSwitch value={planStatusOf(p, p.semester == null ? sem : undefined)}
+                            onChange={st => setStatus(p, st, p.semester == null ? sem : undefined)}
+                            label={`${p.label || p.name}第${sem}學期送件狀態`} />
+                        </div>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-center">
-                    <button onClick={() => toggleActive(p)}
-                      className={`text-xs px-2 py-0.5 rounded-full ${p.is_active ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
-                      {p.is_active ? '啟用' : '停用'}
+                    <button onClick={() => toggleActive(p)} title={p.is_active ? '點擊停用' : '點擊啟用'}
+                      className={`${CHIP} gap-1.5 cursor-pointer ${p.is_active ? 'bg-green-50 text-green-700 ring-green-600/20 hover:bg-green-100' : 'bg-gray-50 text-gray-500 ring-gray-400/30 hover:bg-gray-100'}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${p.is_active ? 'bg-green-500' : 'bg-gray-300'}`} aria-hidden />
+                      {p.is_active ? '啟用中' : '已停用'}
                     </button>
                   </td>
-                  <td className="px-4 py-3 text-center">
-                    <div className="flex gap-1 justify-center">
-                      <button onClick={() => openEdit(p)} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded cursor-pointer">編輯</button>
-                      <button onClick={() => setDeleteTarget(p)} className="text-xs px-2 py-1 bg-red-50 text-red-500 hover:bg-red-100 rounded cursor-pointer">刪除</button>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-1.5 justify-center whitespace-nowrap">
+                      <button onClick={() => openEdit(p)} className="text-xs px-2.5 py-1 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer">編輯</button>
+                      <button onClick={() => setDeleteTarget(p)} className="text-xs px-2.5 py-1 rounded-lg text-red-600 hover:bg-red-50 cursor-pointer">刪除</button>
                     </div>
                   </td>
                 </tr>
@@ -436,6 +436,9 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
     </div>
   )
 }
+
+// 列表內統一的標籤樣式（圓角膠囊、不換行）
+const CHIP = 'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset'
 
 const STATUS_ACTIVE: Record<PlanStatus, string> = {
   not_open: 'bg-white text-gray-700 shadow-sm',
