@@ -15,15 +15,15 @@ interface NavbarProps {
 
 export default function Navbar({ schoolName, email, isAdmin, schoolYear, systemName, manualUrl, adminManualUrl, currentPage }: NavbarProps) {
   return (
-    <nav className="bg-blue-700 text-white px-6 py-3 flex items-center justify-between shadow">
-      <div className="flex items-center gap-3">
-        <span className="text-xl">🍱</span>
-        <div>
-          <p className="font-bold text-sm leading-tight">{systemName || '免費營養午餐核銷系統'}</p>
+    <nav className="bg-blue-700 text-white px-4 sm:px-6 py-3 flex items-center justify-between gap-3 shadow">
+      <div className="flex items-center gap-3 min-w-0">
+        <span className="text-xl shrink-0" aria-hidden>🍱</span>
+        <div className="min-w-0">
+          <p className="font-bold text-sm leading-tight truncate">{systemName || '免費營養午餐核銷系統'}</p>
           <p className="text-blue-200 text-xs">{schoolYear || '115'}學年度</p>
         </div>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 shrink-0">
         {isAdmin && currentPage === 'admin' && (
           <Link href="/school" className="text-sm bg-blue-500 hover:bg-blue-400 px-3 py-1 rounded-lg transition-colors">
             使用者模式
@@ -34,7 +34,7 @@ export default function Navbar({ schoolName, email, isAdmin, schoolYear, systemN
             承辦後台
           </Link>
         )}
-        <div className="text-right text-sm">
+        <div className="hidden md:block text-right text-sm">
           {schoolName && <p className="font-medium">{schoolName}</p>}
           <p className="text-blue-200 text-xs">{email}</p>
         </div>
@@ -45,7 +45,7 @@ export default function Navbar({ schoolName, email, isAdmin, schoolYear, systemN
             rel="noopener noreferrer"
             className="text-xs bg-blue-800 hover:bg-blue-900 px-3 py-1.5 rounded-lg transition-colors"
           >
-            📄 使用說明
+            使用說明
           </a>
         )}
         <button

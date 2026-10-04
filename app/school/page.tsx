@@ -6,6 +6,8 @@ import { getSettingsForZone } from '@/lib/settings'
 import Navbar from '@/components/Navbar'
 import ImpersonateBanner from '@/components/ImpersonateBanner'
 import Link from 'next/link'
+import { StatusChip } from '@/components/StatusChip'
+import { CheckIcon, ChevronRightIcon, ClockIcon, PencilIcon } from '@/components/icons'
 import { formatAmount } from '@/lib/utils'
 import RebindButton from '@/components/RebindButton'
 import ContactEditButton from '@/components/ContactEditButton'
@@ -144,8 +146,8 @@ export default async function SchoolDashboard() {
 
         {/* 學校資訊卡 */}
         <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 space-y-4">
-          <div className="flex items-start justify-between">
-            <div>
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+            <div className="min-w-0">
               <p className="text-sm text-gray-500">{schoolYear} 學年度・{school?.district}・編號 {school?.code}</p>
               <h1 className="text-2xl font-bold text-gray-800 mt-0.5">{school?.name}</h1>
               {(contactName || contactPhone) && (
@@ -155,10 +157,10 @@ export default async function SchoolDashboard() {
                 </p>
               )}
             </div>
-            <div className="text-right text-sm text-gray-500 space-y-1">
+            <div className="sm:text-right text-sm text-gray-500 space-y-1 shrink-0">
               <p>核定總金額</p>
-              <p className="text-xl font-bold text-blue-700">NT$ {formatAmount(grandTotal)}</p>
-              <div className="flex gap-2 justify-end mt-1">
+              <p className="text-xl font-bold text-blue-700 tabular-nums">NT$ {formatAmount(grandTotal)}</p>
+              <div className="flex flex-wrap gap-2 sm:justify-end mt-1">
                 <ContactEditButton initialName={contactName} initialTitle={contactTitle} initialPhone={contactPhone} />
                 <RebindButton />
               </div>
@@ -190,7 +192,7 @@ export default async function SchoolDashboard() {
                 return (
                   <div key={plan.id}>
                     <p className="text-xs font-semibold text-gray-500 mb-2">{plan.name}</p>
-                    <div className={`grid gap-3`} style={{ gridTemplateColumns: `repeat(${sems.length}, 1fr)` }}>
+                    <div className={`grid gap-3 ${sems.length > 1 ? 'sm:grid-cols-2' : ''}`}>
                       {sems.map(sem => {
                         const approved = planAmountMap[plan.id]?.[sem] || 0
                         const settle = getSettle(sem)
@@ -240,7 +242,7 @@ export default async function SchoolDashboard() {
             </div>
           ) : (
             /* 學期模式（原本） */
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid sm:grid-cols-2 gap-4">
               <div className="bg-blue-50 rounded-xl p-4 space-y-1.5">
                 <p className="text-xs font-bold text-blue-600 uppercase tracking-wide">第1學期</p>
                 <AmountRow label="核定金額" amount={amounts?.sem1_amount || 0} color="blue" bold />
@@ -312,14 +314,14 @@ export default async function SchoolDashboard() {
                     done: !!settle?.scan_file_path && !hasPendingByPlan(plan.id, sem, ['scan_upload', 'scan_reupload']),
                     pending: hasPendingByPlan(plan.id, sem, ['scan_upload', 'scan_reupload']),
                     href: `/school/semester/${sem}/upload?plan_id=${plan.id}`,
-                    desc: hasPendingByPlan(plan.id, sem, ['scan_upload', 'scan_reupload']) ? '待審核中，請靜候通知' : settle?.scan_file_path ? '✓ 已核准' : '請上傳列印蓋章後的掃描檔',
+                    desc: hasPendingByPlan(plan.id, sem, ['scan_upload', 'scan_reupload']) ? '待審核中，請靜候通知' : settle?.scan_file_path ? '已核准' : '請上傳列印蓋章後的掃描檔',
                   },
                   ...(plan.require_repay && !(plan.deduct_s1_repay && sem === 1) ? [{
                     label: '上傳賸餘款送款憑單',
                     done: !!settle?.remittance_file_path && !hasPendingByPlan(plan.id, sem, ['remittance_upload', 'remittance_reupload']),
                     pending: hasPendingByPlan(plan.id, sem, ['remittance_upload', 'remittance_reupload']),
                     href: `/school/semester/${sem}/remittance?plan_id=${plan.id}`,
-                    desc: hasPendingByPlan(plan.id, sem, ['remittance_upload', 'remittance_reupload']) ? '待審核中，請靜候通知' : settle?.remittance_file_path ? '✓ 已核准' : (settle?.surplus ?? 0) > 0 ? '有賸餘款，請繳款後上傳憑單' : '如有賸餘款，繳回公庫後上傳送款憑單',
+                    desc: hasPendingByPlan(plan.id, sem, ['remittance_upload', 'remittance_reupload']) ? '待審核中，請靜候通知' : settle?.remittance_file_path ? '已核准' : (settle?.surplus ?? 0) > 0 ? '有賸餘款，請繳款後上傳憑單' : '如有賸餘款，繳回公庫後上傳送款憑單',
                   }] : []),
                 ]
                 return (
@@ -368,7 +370,7 @@ export default async function SchoolDashboard() {
                   done: !!settle1?.scan_file_path && !hasPending(1, ['scan_upload', 'scan_reupload']),
                   pending: hasPending(1, ['scan_upload', 'scan_reupload']),
                   href: '/school/semester/1/upload',
-                  desc: hasPending(1, ['scan_upload', 'scan_reupload']) ? '待審核中，請靜候通知' : settle1?.scan_file_path ? '✓ 已核准' : '請上傳列印蓋章後的掃描檔',
+                  desc: hasPending(1, ['scan_upload', 'scan_reupload']) ? '待審核中，請靜候通知' : settle1?.scan_file_path ? '已核准' : '請上傳列印蓋章後的掃描檔',
                 },
               ]}
             />
@@ -389,14 +391,14 @@ export default async function SchoolDashboard() {
                   done: !!settle2?.scan_file_path && !hasPending(2, ['scan_upload', 'scan_reupload']),
                   pending: hasPending(2, ['scan_upload', 'scan_reupload']),
                   href: '/school/semester/2/upload',
-                  desc: hasPending(2, ['scan_upload', 'scan_reupload']) ? '待審核中，請靜候通知' : settle2?.scan_file_path ? '✓ 已核准' : '請上傳列印蓋章後的掃描檔',
+                  desc: hasPending(2, ['scan_upload', 'scan_reupload']) ? '待審核中，請靜候通知' : settle2?.scan_file_path ? '已核准' : '請上傳列印蓋章後的掃描檔',
                 },
                 {
                   label: '上傳賸餘款送款憑單',
                   done: !!settle2?.remittance_file_path && !hasPending(2, ['remittance_upload', 'remittance_reupload']),
                   pending: hasPending(2, ['remittance_upload', 'remittance_reupload']),
                   href: '/school/semester/2/remittance',
-                  desc: hasPending(2, ['remittance_upload', 'remittance_reupload']) ? '待審核中，請靜候通知' : settle2?.remittance_file_path ? '✓ 已核准' : (settle2?.surplus ?? 0) > 0 ? '有賸餘款，請繳款後上傳憑單' : '如有賸餘款，繳回公庫後上傳送款憑單',
+                  desc: hasPending(2, ['remittance_upload', 'remittance_reupload']) ? '待審核中，請靜候通知' : settle2?.remittance_file_path ? '已核准' : (settle2?.surplus ?? 0) > 0 ? '有賸餘款，請繳款後上傳憑單' : '如有賸餘款，繳回公庫後上傳送款憑單',
                 },
               ]}
             />
@@ -462,34 +464,51 @@ function PeriodCard({ label, color, deadline, disabled, steps }: {
     sky: disabled ? 'bg-gray-400' : 'bg-sky-500',
     indigo: disabled ? 'bg-gray-400' : 'bg-indigo-600',
   }[color]
+  const required = steps.filter(s => !s.optional)
+  const doneCount = required.filter(s => s.done).length
+  const allDone = required.length > 0 && doneCount === required.length
 
   return (
     <div className={disabled ? 'opacity-60' : ''}>
-      <div className={`flex items-center justify-between ${headerColor} text-white text-sm font-bold px-4 py-2 rounded-t-xl`}>
+      <div className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 ${headerColor} text-white text-sm font-bold px-4 py-2 rounded-t-xl`}>
         <span>{label}</span>
-        <span className="text-xs font-normal opacity-80">{disabled ? '暫未開放' : deadline}</span>
+        <span className="text-xs font-normal opacity-90">{disabled ? '暫未開放' : deadline}</span>
       </div>
       <div className="bg-white rounded-b-2xl shadow-sm border border-gray-100 p-4 space-y-2">
         {disabled ? (
           <p className="text-sm text-gray-400 text-center py-2">此階段尚未開放，請等待通知</p>
         ) : (
-          steps.map((step, i) => (
-            <Link key={i} href={step.href}
-              className="flex items-center gap-4 p-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all group">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold
-                ${step.optional ? 'bg-blue-100 text-blue-500'
-                  : step.done ? 'bg-green-500 text-white'
-                  : step.pending ? 'bg-amber-400 text-white'
-                  : 'bg-gray-200 text-gray-600'}`}>
-                {step.optional ? '✎' : step.done ? '✓' : step.pending ? '⏳' : i + 1}
+          <>
+            {required.length > 1 && (
+              <div className="flex items-center gap-3 px-1 pb-1">
+                <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden" role="progressbar" aria-valuemin={0} aria-valuemax={required.length} aria-valuenow={doneCount} aria-label={`${label}進度`}>
+                  <div className="h-full rounded-full bg-green-500 transition-all" style={{ width: `${(doneCount / required.length) * 100}%` }} />
+                </div>
+                <span className={`text-xs tabular-nums ${allDone ? 'text-green-700 font-medium' : 'text-gray-500'}`}>
+                  {allDone ? '本階段已完成' : `已完成 ${doneCount}/${required.length}`}
+                </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-800 text-sm">{step.label}</p>
-                <p className="text-xs text-gray-500 truncate">{step.desc}</p>
-              </div>
-              <span className="text-gray-400 group-hover:text-blue-500 transition-colors text-sm">→</span>
-            </Link>
-          ))
+            )}
+            {steps.map((step, i) => (
+              <Link key={i} href={step.href}
+                className="flex items-center gap-3 sm:gap-4 p-3 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50 transition-all group">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold
+                  ${step.optional ? 'bg-blue-100 text-blue-500'
+                    : step.done ? 'bg-green-500 text-white'
+                    : step.pending ? 'bg-amber-400 text-white'
+                    : 'bg-gray-200 text-gray-600'}`}>
+                  {step.optional ? <PencilIcon /> : step.done ? <CheckIcon /> : step.pending ? <ClockIcon /> : i + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-800 text-sm">{step.label}</p>
+                  <p className="text-xs text-gray-500 break-words">{step.desc}</p>
+                </div>
+                {!step.optional && step.done && <span className="hidden sm:inline-flex"><StatusChip tone="done">已完成</StatusChip></span>}
+                {!step.optional && !step.done && step.pending && <span className="hidden sm:inline-flex"><StatusChip tone="pending">待審核</StatusChip></span>}
+                <ChevronRightIcon className="text-gray-400 group-hover:text-blue-500 transition-colors shrink-0" />
+              </Link>
+            ))}
+          </>
         )}
       </div>
     </div>

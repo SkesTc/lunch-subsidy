@@ -20,3 +20,15 @@ export const MailIcon = ({ size = 16, className }: P) => (
 export const TrashIcon = ({ size = 14, className }: P) => (
   <svg {...base(size)} className={className}><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>
 )
+export const ChevronRightIcon = ({ size = 16, className }: P) => (
+  <svg {...base(size)} className={className}><path d="m9 6 6 6-6 6" /></svg>
+)
+export const ClockIcon = ({ size = 14, className }: P) => (
+  <svg {...base(size)} className={className}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+)
+export const CheckIcon = ({ size = 14, className }: P) => (
+  <svg {...base(size)} strokeWidth={3} className={className}><path d="m5 12 5 5 9-10" /></svg>
+)
+export const PencilIcon = ({ size = 14, className }: P) => (
+  <svg {...base(size)} className={className}><path d="M4 20h4L19 9l-4-4L4 16z" /></svg>
+)
