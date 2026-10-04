@@ -1,6 +1,8 @@
 'use client'
 import React, { useState, useEffect, useRef } from 'react'
-import { SearchIcon, FolderIcon, DownloadIcon, ChevronDownIcon, MailIcon } from '@/components/icons'
+import { SearchIcon, FolderIcon, DownloadIcon, ChevronDownIcon, MailIcon, TrashIcon } from '@/components/icons'
+import { StatusChip } from '@/components/StatusChip'
+import { useDialog } from '@/components/DialogProvider'
 import { formatAmount } from '@/lib/utils'
 import type { School, AmountRow, BankRow, SettleRow, ProfileRow, ContactInfo, Plan, PlanAmount } from '../types'
 import { BatchPrintModal } from '../components/BatchPrintModal'
@@ -14,6 +16,7 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
   plans: Plan[]; planAmounts: PlanAmount[]
   driveFolderId: string; setDriveFolderId: (v: string) => void; driveFolderUrl: string; setDriveFolderUrl: (v: string) => void
 }) {
+  const dialog = useDialog()
   // 計畫頁籤：有計畫時用計畫切換，否則保持學期切換
   const hasPlans = plans.length > 0
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null)
@@ -51,9 +54,6 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
   // checkboxes
   const [selected, setSelected] = useState<Set<number>>(new Set())
   // delete file confirm modal
-  const [deleteConfirm, setDeleteConfirm] = useState<{ settlementId: number; fileType: 'scan' | 'remittance' } | null>(null)
-  const [deleteError, setDeleteError] = useState('')
-  const [deleting, setDeleting] = useState(false)
   // notify modal
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [notifyToast, setNotifyToast] = useState('')
@@ -266,22 +266,14 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
     const a = document.createElement('a'); a.href = url; a.download = `第${effectiveSem}學期_賸餘款彙整.xlsx`; a.click()
   }
 
-  function handleDeleteFile(settlementId: number, fileType: 'scan' | 'remittance') {
-    setDeleteError('')
-    setDeleteConfirm({ settlementId, fileType })
-  }
-
-  async function confirmDeleteFile() {
-    if (!deleteConfirm) return
-    const { settlementId, fileType } = deleteConfirm
-    setDeleting(true)
-    setDeleteError('')
+  async function handleDeleteFile(settlementId: number, fileType: 'scan' | 'remittance') {
+    const label = fileType === 'scan' ? '經費收支結算表掃描檔' : '賸餘款送款憑單'
+    if (!(await dialog.confirm({ title: `刪除${label}`, message: '刪除後學校需重新上傳，此操作無法復原。', confirmLabel: '刪除', danger: true }))) return
     const res = await fetch('/api/admin/file', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ settlementId, fileType }),
     })
-    setDeleting(false)
     if (res.ok) {
       setSettlements(prev => prev.map(s => {
         if (s.id !== settlementId) return s
@@ -289,13 +281,11 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
           ? { ...s, scan_file_path: null, status: 'downloaded' }
           : { ...s, remittance_file_path: null }
       }))
-      setDeleteConfirm(null)
     } else {
       const data = await res.json().catch(() => ({}))
-      setDeleteError(`刪除失敗：${data.error || res.status}`)
+      await dialog.alert({ title: '刪除失敗', message: String(data.error || `HTTP ${res.status}`), tone: 'error' })
     }
   }
-
 
   function fileUrl(path: string) {
     if (!path) return '#'
@@ -573,7 +563,7 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
                       })}
                     </div>
                   ) : (
-                    <span className="text-xs text-gray-300">未綁定</span>
+                    <StatusChip tone="missing">未綁定</StatusChip>
                   )}
                 </td>
                 <td className="px-4 py-3 text-center">
@@ -582,23 +572,16 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
                     return (
                       <div className="flex flex-col items-center gap-0.5">
                         {settle?.scan_file_path ? (
-                          <div className="flex items-center gap-1">
-                            <a href={fileUrl(settle.scan_file_path)} target="_blank" rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700 hover:bg-green-200">
-                              ✓ 開啟
-                            </a>
-                            <button onClick={() => settle.id && handleDeleteFile(settle.id, 'scan')}
-                              className="px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-600 hover:bg-red-200 cursor-pointer">
-                              刪除
-                            </button>
+                          <div className="flex items-center gap-0.5">
+                            <StatusChip tone="done" href={fileUrl(settle.scan_file_path)} title="開啟檔案">已上傳</StatusChip>
+                            <button onClick={() => settle.id && handleDeleteFile(settle.id, 'scan')} aria-label="刪除結算表掃描檔" title="刪除檔案"
+                              className="p-1 rounded text-gray-300 hover:text-red-600 hover:bg-red-50 cursor-pointer"><TrashIcon /></button>
                           </div>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-400">○ 掃描檔</span>
+                        ) : !pendingScan && (
+                          <StatusChip tone="missing">未上傳</StatusChip>
                         )}
                         {pendingScan && (
-                          <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-                            ⏳ {pendingScan.request_type === 'scan_upload' ? '首次上傳待審' : '重新上傳待審'}
-                          </span>
+                          <StatusChip tone="pending">{pendingScan.request_type === 'scan_upload' ? '首次上傳待審' : '重新上傳待審'}</StatusChip>
                         )}
                       </div>
                     )
@@ -622,27 +605,20 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
                           })()
                             ? settle?.remittance_file_path
                               ? <div className="flex flex-col items-center gap-0.5">
-                                  <div className="flex items-center gap-1">
-                                    <a href={fileUrl(settle.remittance_file_path)} target="_blank" rel="noopener noreferrer"
-                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700 hover:bg-green-200">
-                                      ✓ 開啟
-                                    </a>
-                                    <button onClick={() => settle.id && handleDeleteFile(settle.id, 'remittance')}
-                                      className="px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-600 hover:bg-red-200 cursor-pointer">
-                                      刪除
-                                    </button>
+                                  <div className="flex items-center gap-0.5">
+                                    <StatusChip tone="done" href={fileUrl(settle.remittance_file_path)} title="開啟檔案">已上傳</StatusChip>
+                                    <button onClick={() => settle.id && handleDeleteFile(settle.id, 'remittance')} aria-label="刪除送款憑單" title="刪除檔案"
+                                      className="p-1 rounded text-gray-300 hover:text-red-600 hover:bg-red-50 cursor-pointer"><TrashIcon /></button>
                                   </div>
                                   {settle.remittance_date && (
                                     <span className="text-xs text-gray-400">{settle.remittance_date}</span>
                                   )}
                                 </div>
-                              : <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-gray-100 text-gray-400">○ 憑單</span>
-                            : <span className="text-xs text-gray-300">無賸餘</span>
+                              : !pendingRemit && <StatusChip tone="missing">未上傳</StatusChip>
+                            : <StatusChip tone="na">無需繳回</StatusChip>
                           }
                           {pendingRemit && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
-                              ⏳ {pendingRemit.request_type === 'remittance_upload' ? '首次上傳待審' : '重新上傳待審'}
-                            </span>
+                            <StatusChip tone="pending">{pendingRemit.request_type === 'remittance_upload' ? '首次上傳待審' : '重新上傳待審'}</StatusChip>
                           )}
                         </div>
                       )
@@ -679,32 +655,6 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
         )}
       </div>
 
-      {/* 刪除檔案確認 Modal */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
-            <h2 className="text-lg font-bold text-gray-800">確認刪除</h2>
-            <p className="text-sm text-gray-600">
-              確定要刪除此{deleteConfirm.fileType === 'scan' ? '收支結算表掃描檔' : '賸餘款送款憑單'}？<br />
-              <span className="text-red-500 font-medium">此操作無法復原。</span>
-            </p>
-            {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
-            <div className="flex gap-3 justify-end">
-              <button onClick={() => setDeleteConfirm(null)} disabled={deleting}
-                className="px-4 py-2 rounded-lg text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50">
-                取消
-              </button>
-              <button onClick={confirmDeleteFile} disabled={deleting}
-                className="px-4 py-2 rounded-lg text-sm text-white bg-red-500 hover:bg-red-600 disabled:opacity-70 flex items-center gap-2">
-                {deleting && <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-                {deleting ? '刪除中...' : '確認刪除'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 催收通知 Modal */}
       {notifyOpen && (
         <NotifyModal
           targets={allSemSchools.filter(x => selected.has(x.school.id)).map(x => ({

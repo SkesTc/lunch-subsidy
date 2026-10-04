@@ -1,4 +1,5 @@
 'use client'
+import { StatusChip } from '@/components/StatusChip'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
@@ -135,7 +136,7 @@ export default function UploadPage() {
             <div className="space-y-4">
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ 已核准</span>
+                  <StatusChip tone="done">已核准</StatusChip>
                   <p className="text-sm font-medium text-blue-700">此學期已上傳掃描檔</p>
                 </div>
                 {viewUrl && (

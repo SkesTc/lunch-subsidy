@@ -17,3 +17,6 @@ export const ChevronDownIcon = ({ size = 12, className }: P) => (
 export const MailIcon = ({ size = 16, className }: P) => (
   <svg {...base(size)} className={className}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></svg>
 )
+export const TrashIcon = ({ size = 14, className }: P) => (
+  <svg {...base(size)} className={className}><path d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3" /></svg>
+)

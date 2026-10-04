@@ -1,4 +1,5 @@
 'use client'
+import { StatusChip } from '@/components/StatusChip'
 import { useDialog } from '@/components/DialogProvider'
 import React, { useState, useEffect } from 'react'
 import { formatAmount } from '@/lib/utils'
@@ -227,7 +228,7 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
                   <div className="flex items-center gap-2">
                     <span className="font-semibold text-gray-800">{req.school_name}</span>
                     <span className="text-xs text-gray-400">{new Date(req.submitted_at).toLocaleString('zh-TW')}</span>
-                    {isDone && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${req.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>{req.status === 'approved' ? '✓ 已通過' : '✗ 已拒絕'}</span>}
+                    {isDone && <StatusChip tone={req.status === 'approved' ? 'done' : 'rejected'}>{req.status === 'approved' ? '已核准' : '已拒絕'}</StatusChip>}
                   </div>
                   <a href={`https://drive.google.com/file/d/${req.file_id}/view`} target="_blank" rel="noopener noreferrer"
                     className="text-xs bg-blue-100 text-blue-600 hover:bg-blue-200 px-3 py-1 rounded-lg">📄 開啟附件</a>
@@ -252,9 +253,9 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
                 )}
                 {isDone && (
                   <div className="space-y-1">
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${req.status === 'approved' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                      {req.status === 'approved' ? '✓ 已核准' : '✗ 已拒絕'}
-                      {req.reviewed_at && <span className="font-normal opacity-70">{new Date(req.reviewed_at).toLocaleString('zh-TW')}</span>}
+                    <div className="flex items-center gap-2 text-xs">
+                      <StatusChip tone={req.status === 'approved' ? 'done' : 'rejected'}>{req.status === 'approved' ? '已核准' : '已拒絕'}</StatusChip>
+                      {req.reviewed_at && <span className="text-gray-400">{new Date(req.reviewed_at).toLocaleString('zh-TW')}</span>}
                     </div>
                     {req.admin_note && <p className="text-xs text-gray-400 px-1">備註：{req.admin_note}</p>}
                   </div>
@@ -374,9 +375,9 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
 
                 {isDone ? (
                   <div className="space-y-1">
-                    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${req.status === 'approved' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
-                      {req.status === 'approved' ? '✓ 已核准' : '✗ 已拒絕'}
-                      {req.reviewed_at && <span className="font-normal opacity-70">{new Date(req.reviewed_at).toLocaleString('zh-TW')}</span>}
+                    <div className="flex items-center gap-2 text-xs">
+                      <StatusChip tone={req.status === 'approved' ? 'done' : 'rejected'}>{req.status === 'approved' ? '已核准' : '已拒絕'}</StatusChip>
+                      {req.reviewed_at && <span className="text-gray-400">{new Date(req.reviewed_at).toLocaleString('zh-TW')}</span>}
                     </div>
                     {req.admin_note && (
                       <p className="text-xs text-gray-400 px-1">備註：{req.admin_note}</p>
