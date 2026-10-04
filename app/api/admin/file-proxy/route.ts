@@ -11,7 +11,9 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const fileId = searchParams.get('fileId')
   if (!fileId) return NextResponse.json({ error: '缺少 fileId' }, { status: 400 })
-  if (!(await canAdminAccessFile(session.user.email, fileId))) return NextResponse.json({ error: '無權限檢視此檔案' }, { status: 403 })
+  const schoolParam = Number(searchParams.get('school'))
+  const schoolHint = Number.isInteger(schoolParam) && schoolParam > 0 ? schoolParam : undefined
+  if (!(await canAdminAccessFile(session.user.email, fileId, schoolHint))) return NextResponse.json({ error: '無權限檢視此檔案' }, { status: 403 })
 
   const { buffer, mimeType } = await fetchFileBytes(fileId)
   return new NextResponse(new Uint8Array(buffer), {

@@ -7,6 +7,7 @@ import { formatAmount } from '@/lib/utils'
 import type { School, AmountRow, BankRow, SettleRow, ProfileRow, ContactInfo, Plan, PlanAmount } from '../types'
 import { BatchPrintModal } from '../components/BatchPrintModal'
 import { NotifyModal } from '../components/NotifyModal'
+import { fileViewerUrl } from '../fileViewer'
 
 // ── 總覽頁籤 ───────────────────────────────────────────────
 type StatusFilter = 'all' | 'done' | 'undone'
@@ -287,11 +288,6 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
     }
   }
 
-  function fileUrl(path: string) {
-    if (!path) return '#'
-    if (!path.includes('/')) return `https://drive.google.com/file/d/${path}/view`
-    return `/api/admin/file?path=${encodeURIComponent(path)}`
-  }
 
   function FilterSelect({ value, onChange }: { value: StatusFilter; onChange: (v: StatusFilter) => void }) {
     return (
@@ -573,7 +569,7 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
                       <div className="flex flex-col items-center gap-0.5">
                         {settle?.scan_file_path ? (
                           <div className="flex items-center gap-0.5">
-                            <StatusChip tone="done" href={fileUrl(settle.scan_file_path)} title="開啟檔案">已上傳</StatusChip>
+                            <StatusChip tone="done" href={fileViewerUrl(settle.scan_file_path, { name: `${school.name}・經費收支結算表` })} title="開啟檔案">已上傳</StatusChip>
                             <button onClick={() => settle.id && handleDeleteFile(settle.id, 'scan')} aria-label="刪除結算表掃描檔" title="刪除檔案"
                               className="p-1 rounded text-gray-300 hover:text-red-600 hover:bg-red-50 cursor-pointer"><TrashIcon /></button>
                           </div>
@@ -606,7 +602,7 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
                             ? settle?.remittance_file_path
                               ? <div className="flex flex-col items-center gap-0.5">
                                   <div className="flex items-center gap-0.5">
-                                    <StatusChip tone="done" href={fileUrl(settle.remittance_file_path)} title="開啟檔案">已上傳</StatusChip>
+                                    <StatusChip tone="done" href={fileViewerUrl(settle.remittance_file_path, { name: `${school.name}・送款憑單` })} title="開啟檔案">已上傳</StatusChip>
                                     <button onClick={() => settle.id && handleDeleteFile(settle.id, 'remittance')} aria-label="刪除送款憑單" title="刪除檔案"
                                       className="p-1 rounded text-gray-300 hover:text-red-600 hover:bg-red-50 cursor-pointer"><TrashIcon /></button>
                                   </div>

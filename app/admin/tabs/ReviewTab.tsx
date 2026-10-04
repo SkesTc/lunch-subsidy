@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react'
 import { formatAmount } from '@/lib/utils'
 import { Spinner, BlockSpinner } from '@/components/Spinner'
 import type { School, ProfileRow, ContactInfo, Plan } from '../types'
-import { FileViewerModal } from '../components/FileViewerModal'
+import { fileViewerUrl } from '../fileViewer'
 
 // ── 申請審核頁籤 ───────────────────────────────────────────
 export default function ReviewTab({ activeSchoolYear, schools, profiles, contacts, plans, onReviewDone }: {
@@ -37,7 +37,6 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
   const [subTab, setSubTab] = useState<'pending' | 'approved' | 'rejected'>('pending')
   const [planFilter, setPlanFilter] = useState<string | null>(null) // null = 全部計畫
   const [typeFilter, setTypeFilter] = useState<string>('all') // 申請類型篩選
-  const [viewer, setViewer] = useState<{ fileId: string; fileExt: string | null } | null>(null)
   const [confirmDialog, setConfirmDialog] = useState<{
     action: 'approve' | 'reject' | 'approved' | 'rejected'
     label: string
@@ -230,8 +229,8 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
                     <span className="text-xs text-gray-400">{new Date(req.submitted_at).toLocaleString('zh-TW')}</span>
                     {isDone && <StatusChip tone={req.status === 'approved' ? 'done' : 'rejected'}>{req.status === 'approved' ? '已核准' : '已拒絕'}</StatusChip>}
                   </div>
-                  <a href={`https://drive.google.com/file/d/${req.file_id}/view`} target="_blank" rel="noopener noreferrer"
-                    className="text-xs bg-blue-100 text-blue-600 hover:bg-blue-200 px-3 py-1 rounded-lg">📄 開啟附件</a>
+                  <a href={fileViewerUrl(req.file_id, { name: `${req.school_name}・帳戶變更附件`, schoolId: req.school_id })} target="_blank" rel="noopener noreferrer"
+                    className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg">開啟附件</a>
                 </div>
                 <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 grid grid-cols-2 gap-1">
                   {Object.entries(req.new_info).map(([k, v]) => (
@@ -352,16 +351,16 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
                     {/* 檔案連結 */}
                     <div className="flex gap-2 flex-wrap">
                       {req.existing_file_path && (
-                        <a href={`https://drive.google.com/file/d/${req.existing_file_path}/view`} target="_blank" rel="noopener noreferrer"
+                        <a href={fileViewerUrl(req.existing_file_path, { name: `${req.schools?.name || ''}・${tl}・現有檔案` })} target="_blank" rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-200 px-3 py-1.5 rounded-lg">
-                          📄 現有檔案
+                          現有檔案
                         </a>
                       )}
-                      {req.pending_file_path && !req.pending_file_path.includes('/') && (
-                        <button onClick={() => window.open(`/admin/file-viewer?fileId=${encodeURIComponent(req.pending_file_path!)}&fileExt=${encodeURIComponent(req.pending_file_ext || '')}`, '_blank')}
-                          className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg cursor-pointer">
-                          📄 待審檔案
-                        </button>
+                      {req.pending_file_path && (
+                        <a href={fileViewerUrl(req.pending_file_path, { name: `${req.schools?.name || ''}・${tl}・待審檔案`, ext: req.pending_file_ext })} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg">
+                          待審檔案
+                        </a>
                       )}
                     </div>
                   </div>
@@ -408,7 +407,6 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
           <p className="font-medium">{subTab === 'pending' ? '目前沒有待審核的申請' : subTab === 'approved' ? '尚無已通過的申請' : '尚無已拒絕的申請'}</p>
         </div>
       )}
-      {viewer && <FileViewerModal fileId={viewer.fileId} fileExt={viewer.fileExt} onClose={() => setViewer(null)} />}
     </div>
   )
 }
