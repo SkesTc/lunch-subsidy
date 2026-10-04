@@ -1,4 +1,5 @@
 'use client'
+import { PlanClosedNotice } from '@/components/PlanClosedNotice'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { StatusChip } from '@/components/StatusChip'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
@@ -26,6 +27,7 @@ export default function UploadPage() {
 
   // pending states
   const [pendingUpload, setPendingUpload] = useState(false)   // scan_upload 待審核
+  const [planOpen, setPlanOpen] = useState(true)
   const [pendingReupload, setPendingReupload] = useState(false) // scan_reupload 待審核
   const [amountFilled, setAmountFilled] = useState(false) // 實支金額是否已填
 
@@ -39,7 +41,8 @@ export default function UploadPage() {
 
   useEffect(() => {
     const statusUrl = planId ? `/api/school/status?semester=${semester}&plan_id=${planId}` : `/api/school/status?semester=${semester}`
-    fetch(statusUrl).then(r => r.json()).then(({ settlement, pendingRequests }) => {
+    fetch(statusUrl).then(r => r.json()).then(({ settlement, pendingRequests, planOpen: open }) => {
+      setPlanOpen(open !== false)
       if (settlement?.scan_file_path) setExistingPath(settlement.scan_file_path)
       // 實支金額已填（大於 0）才允許上傳
       if (settlement?.business_expense != null && Number(settlement.business_expense) > 0) setAmountFilled(true)
@@ -107,6 +110,8 @@ export default function UploadPage() {
             <p className="text-sm text-gray-500 mt-1">請上傳列印逐級核章後的掃描檔（PDF / JPG / PNG）</p>
           </div>
 
+          {!planOpen && <PlanClosedNotice />}
+
           {/* 上傳成功，等待審核 */}
           {done ? (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-6 text-center space-y-3">
@@ -146,13 +151,17 @@ export default function UploadPage() {
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700 text-center">
                   ⏳ 重新上傳申請待審核中，請靜候通知
                 </div>
-              ) : (
+              ) : planOpen && (
                 <button onClick={() => setShowModal(true)}
                   className="w-full border border-amber-400 text-amber-700 hover:bg-amber-50 font-medium py-2.5 rounded-xl transition-colors cursor-pointer text-sm">
                   申請重新上傳
                 </button>
               )}
             </div>
+
+          /* 已關閉送件且未上傳 */
+          ) : !planOpen ? (
+            <p className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">尚未上傳經費收支結算表掃描檔。</p>
 
           /* 未上傳，顯示上傳表單 */
           ) : (

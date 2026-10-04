@@ -1,4 +1,5 @@
 'use client'
+import { PlanClosedNotice } from '@/components/PlanClosedNotice'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import { StatusChip } from '@/components/StatusChip'
 import { useRouter, useSearchParams, useParams } from 'next/navigation'
@@ -32,6 +33,7 @@ export default function RemittancePage() {
   const [requestDone, setRequestDone] = useState(false)
   const [hasPendingRequest, setHasPendingRequest] = useState(false)
   const [pendingUpload, setPendingUpload] = useState(false)
+  const [planOpen, setPlanOpen] = useState(true)
 
   function fileViewUrl(path: string) {
     if (!path) return null
@@ -40,7 +42,8 @@ export default function RemittancePage() {
 
   useEffect(() => {
     const statusUrl = planId ? `/api/school/status?semester=${semester}&plan_id=${planId}` : `/api/school/status?semester=${semester}`
-    fetch(statusUrl).then(r => r.json()).then(({ settlement, pendingRequests }) => {
+    fetch(statusUrl).then(r => r.json()).then(({ settlement, pendingRequests, planOpen: open }) => {
+      setPlanOpen(open !== false)
       if (settlement) {
         setRepayAmount(settlement.repay_amount || 0)
         if (settlement.remittance_file_path) setExistingPath(settlement.remittance_file_path)
@@ -118,6 +121,8 @@ export default function RemittancePage() {
             <p className="text-sm text-gray-500 mt-1">第{semester}學期・賸餘款繳回公庫</p>
           </div>
 
+          {!planOpen && <PlanClosedNotice />}
+
           {repayAmount > 0 && (
             <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 text-sm">
               <p className="font-semibold text-orange-700">應繳回金額</p>
@@ -161,13 +166,15 @@ export default function RemittancePage() {
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
                   📨 重新上傳申請已送出，請等待承辦學校審核後生效。
                 </div>
-              ) : (
+              ) : planOpen && (
                 <button onClick={() => setShowModal(true)}
                   className="w-full border border-amber-400 text-amber-700 hover:bg-amber-50 font-medium py-2.5 rounded-xl transition-colors cursor-pointer text-sm">
                   申請重新上傳
                 </button>
               )}
             </div>
+          ) : !planOpen ? (
+            <p className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">尚未上傳送款憑單。</p>
           ) : (
             <>
               <div>

@@ -330,7 +330,7 @@ export default async function SchoolDashboard() {
                     label={label}
                     color={(['blue', 'sky', 'indigo'] as const)[i % 3]}
                     deadline={deadlineText}
-                    disabled={!open}
+                    readOnly={!open}
                     steps={steps}
                   />
                 )
@@ -452,17 +452,16 @@ function AmountRow({ label, amount, color, bold }: {
   )
 }
 
-function PeriodCard({ label, color, deadline, disabled, steps }: {
+function PeriodCard({ label, color, deadline, disabled, readOnly, steps }: {
   label: string
   color: 'blue' | 'sky' | 'indigo'
   deadline: string
   disabled?: boolean
+  readOnly?: boolean   // 已關閉送件：仍顯示步驟供查看，但不可修改
   steps: { label: string; done: boolean; pending?: boolean; href: string; desc: string; optional?: boolean }[]
 }) {
-  const headerColor = {
-    blue: disabled ? 'bg-gray-400' : 'bg-blue-600',
-    sky: disabled ? 'bg-gray-400' : 'bg-sky-500',
-    indigo: disabled ? 'bg-gray-400' : 'bg-indigo-600',
+  const headerColor = disabled ? 'bg-gray-400' : readOnly ? 'bg-slate-500' : {
+    blue: 'bg-blue-600', sky: 'bg-sky-500', indigo: 'bg-indigo-600',
   }[color]
   const required = steps.filter(s => !s.optional)
   const doneCount = required.filter(s => s.done).length
@@ -472,7 +471,7 @@ function PeriodCard({ label, color, deadline, disabled, steps }: {
     <div className={disabled ? 'opacity-60' : ''}>
       <div className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 ${headerColor} text-white text-sm font-bold px-4 py-2 rounded-t-xl`}>
         <span>{label}</span>
-        <span className="text-xs font-normal opacity-90">{disabled ? '暫未開放' : deadline}</span>
+        <span className="text-xs font-normal opacity-90">{disabled ? '暫未開放' : readOnly ? '已關閉送件・僅供檢視' : deadline}</span>
       </div>
       <div className="bg-white rounded-b-2xl shadow-sm border border-gray-100 p-4 space-y-2">
         {disabled ? (

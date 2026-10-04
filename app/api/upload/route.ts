@@ -5,6 +5,7 @@ import { getGasSettings, gasUploadFile } from '@/lib/gas'
 import { getActiveSchoolYear } from '@/lib/schoolYear'
 import { writeLog } from '@/lib/operationLog'
 import { NextResponse } from 'next/server'
+import { isPlanOpen, PLAN_CLOSED_MESSAGE } from '@/lib/planOpen'
 
 export async function POST(req: Request) {
   const session = await auth()
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
   const type = fd.get('type') as 'settlement' | 'remittance'
   const remittanceDate = fd.get('remittance_date') as string | null
   const planId = (fd.get('plan_id') as string | null) || null
+  if (!(await isPlanOpen(planId))) return NextResponse.json({ error: PLAN_CLOSED_MESSAGE }, { status: 403 })
 
   if (!file) return NextResponse.json({ error: '無檔案' }, { status: 400 })
 

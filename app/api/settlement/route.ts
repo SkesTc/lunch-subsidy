@@ -3,6 +3,7 @@ import { getEffectiveSchoolId } from '@/lib/impersonate'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getGlobalSettings } from '@/lib/settings'
 import { NextResponse } from 'next/server'
+import { isPlanOpen, PLAN_CLOSED_MESSAGE } from '@/lib/planOpen'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
 import { writeLog } from '@/lib/operationLog'
 
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
 
   const body = await req.json()
   const { semester, personnel_expense, business_expense, equipment_expense, plan_id } = body
+  if (!(await isPlanOpen(plan_id))) return NextResponse.json({ error: PLAN_CLOSED_MESSAGE }, { status: 403 })
   const { active_school_year, school_year } = await getGlobalSettings()
   const schoolYear = (active_school_year || school_year || '115') as string
 

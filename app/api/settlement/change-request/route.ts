@@ -3,6 +3,7 @@ import { getEffectiveSchoolId } from '@/lib/impersonate'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getActiveSchoolYear } from '@/lib/schoolYear'
 import { NextResponse } from 'next/server'
+import { isPlanOpen, PLAN_CLOSED_MESSAGE } from '@/lib/planOpen'
 
 export async function GET(req: Request) {
   const session = await auth()
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
   if (!schoolId) return NextResponse.json({ error: '未綁定學校' }, { status: 401 })
 
   const { semester, plan_id, new_amount, reason } = await req.json()
+  if (!(await isPlanOpen(plan_id))) return NextResponse.json({ error: PLAN_CLOSED_MESSAGE }, { status: 403 })
   if (!semester || !new_amount || !reason?.trim()) {
     return NextResponse.json({ error: '資料不完整' }, { status: 400 })
   }
