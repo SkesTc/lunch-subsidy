@@ -32,7 +32,6 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
   const [zoneFilter, setZoneFilter] = useState<number | null>(null)
   const [zonesMap, setZonesMap] = useState<Record<number, string>>({})
   const [zonesHostMap, setZonesHostMap] = useState<Record<number, string>>({})
-  const [bankFilter, setBankFilter] = useState<StatusFilter>('all')
   const [bindFilter, setBindFilter] = useState<StatusFilter>('all')
   const [scanFilter, setScanFilter] = useState<StatusFilter>('all')
   const [remitFilter, setRemitFilter] = useState<StatusFilter>('all')
@@ -40,16 +39,13 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
   const [showRemittanceMenu, setShowRemittanceMenu] = useState(false)
   const [showBatchPrintMenu, setShowBatchPrintMenu] = useState(false)
   const [batchPrint, setBatchPrint] = useState<'scan' | 'remittance' | null>(null)
-  const [uploading, setUploading] = useState(false)
   const [hostSchool, setHostSchool] = useState('')
   const [planName, setPlanName] = useState('')
   const [settlements, setSettlements] = useState<SettleRow[]>(initSettlements)
-  const [amounts, setAmounts] = useState<AmountRow[]>(initAmounts)
+  const [amounts] = useState<AmountRow[]>(initAmounts)
   // account change requests
   interface ChangeRequest { school_id: number; school_name: string; school_code: number; school_year: string; status: string; new_info: Record<string, string>; file_id: string; submitted_at: string; admin_note: string }
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([])
-  const [reviewNote, setReviewNote] = useState<Record<string, string>>({})
-  const [reviewing, setReviewing] = useState<string | null>(null)
   // checkboxes
   const [selected, setSelected] = useState<Set<number>>(new Set())
   // delete file confirm modal
@@ -83,8 +79,6 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
     schools: { name: string; code: number; district: string }
   }
   const [settleRequests, setSettleRequests] = useState<SettleChangeRequest[]>([])
-  const [settleReviewNote, setSettleReviewNote] = useState<Record<string, string>>({})
-  const [settleReviewing, setSettleReviewing] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/zones').then(r => r.json()).then(d => {
@@ -113,42 +107,6 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
       if (Array.isArray(d)) setSettleRequests(d)
     }).catch(() => {})
   }, [])
-
-  async function handleSettleReview(id: string, action: 'approved' | 'rejected') {
-    setSettleReviewing(id)
-    const res = await fetch('/api/admin/change-requests', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, action, admin_note: settleReviewNote[id] || '' }),
-    })
-    if (res.ok) {
-      setSettleRequests(prev => prev.map(r => r.id === id ? { ...r, status: action } : r))
-      if (action === 'approved') {
-        fetch('/api/admin/settlements').then(r => r.json()).then(d => {
-          if (Array.isArray(d)) setSettlements(d)
-        }).catch(() => {})
-      }
-    }
-    setSettleReviewing(null)
-  }
-
-  async function handleReview(req: ChangeRequest, action: 'approve' | 'reject') {
-    const key = `${req.school_id}_${req.school_year}`
-    setReviewing(key)
-    const res = await fetch('/api/admin/account-changes', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ schoolId: req.school_id, schoolYear: req.school_year, action, adminNote: reviewNote[key] || '' }),
-    })
-    if (res.ok) {
-      setChangeRequests(prev => prev.map(r =>
-        r.school_id === req.school_id && r.school_year === req.school_year
-          ? { ...r, status: action === 'approve' ? 'approved' : 'rejected' }
-          : r
-      ))
-    }
-    setReviewing(null)
-  }
 
   const districts = Array.from(new Set(schools.map(s => s.district))).sort()
   const zoneIds = Array.from(new Set(schools.map(s => s.zone_id).filter((id): id is number => !!id))).sort((a, b) => a - b)
@@ -236,9 +194,6 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
     const pSettles = settlements.filter(s => s.plan_id === p.id)
     const schoolsWithAmount = schools.filter(sc => pAmounts.some(a => a.school_id === sc.id && (a.amount || 0) > 0))
     const total = schoolsWithAmount.length
-    // 依學期計算各項完成數
-    const countBySem = (sem: number | null, check: (s: typeof pSettles[0]) => boolean) =>
-      pSettles.filter(s => (sem == null || s.semester === sem) && check(s)).length
     // 依學期分別計算（全學年計畫會用 S1/S2 分開顯示）
     const sems = p.semester == null ? [1, 2] : [p.semester]
     const semStats = sems.map(sem => {
@@ -261,26 +216,6 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
   }
   function toggleOne(id: number) {
     setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
-  }
-
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    const fd = new FormData()
-    fd.append('file', file)
-    fd.append('semester', String(sem))
-    await fetch('/api/admin/import-bank', { method: 'POST', body: fd })
-    setUploading(false)
-    window.location.reload()
-  }
-
-  async function exportExcel() {
-    const planParam = selectedPlan ? `&plan_id=${selectedPlan.id}` : ''
-    const res = await fetch(`/api/admin/export?semester=${effectiveSem}&type=bank${planParam}`)
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = `第${effectiveSem}學期_帳戶彙整.xlsx`; a.click()
   }
 
   function openSummaryPrint() {
