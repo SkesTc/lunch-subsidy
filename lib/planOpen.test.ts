@@ -1,17 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const state = { planOpen: true as boolean | null, status: undefined as string | undefined, settings: {} as Record<string, string> }
+const state = { planOpen: true as boolean | null, status: undefined as string | undefined, extra: {} as Record<string, unknown>, settings: {} as Record<string, string> }
 
 vi.mock('@/lib/supabase', () => ({
   supabaseAdmin: {
-    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: state.planOpen === null ? null : { is_open: state.planOpen, status: state.status } }) }) }) }),
+    from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: state.planOpen === null ? null : { is_open: state.planOpen, status: state.status, ...state.extra } }) }) }) }),
   },
 }))
 vi.mock('@/lib/settings', () => ({ getGlobalSettings: async () => state.settings }))
 
 const { isSubmissionOpen } = await import('./planOpen')
 
-beforeEach(() => { state.planOpen = true; state.status = undefined; state.settings = {} })
+beforeEach(() => { state.planOpen = true; state.status = undefined; state.extra = {}; state.settings = {} })
 
 describe('是否開放送件', () => {
   it('計畫模式：依計畫開關', async () => {
@@ -27,6 +27,13 @@ describe('是否開放送件', () => {
     expect(await isSubmissionOpen('p1', 1)).toBe(false)
     state.status = 'open'
     expect(await isSubmissionOpen('p1', 1)).toBe(true)
+  })
+
+  it('全年計畫依學期分開判斷', async () => {
+    state.status = 'open'
+    state.extra = { semester: null, semester_status: { '1': 'closed', '2': 'open' } }
+    expect(await isSubmissionOpen('p1', 1)).toBe(false)
+    expect(await isSubmissionOpen('p1', '2')).toBe(true)
   })
 
   it('計畫不存在時視為未開放', async () => {

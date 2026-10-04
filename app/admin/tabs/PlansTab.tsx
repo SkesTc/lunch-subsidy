@@ -1,5 +1,5 @@
 'use client'
-import { PLAN_STATUSES, PLAN_STATUS_LABELS, planStatusOf, type PlanStatus } from '@/lib/planStatus'
+import { PLAN_STATUSES, PLAN_STATUS_LABELS, planStatusOf, semesterStatusesOf, type PlanStatus } from '@/lib/planStatus'
 import { useDialog } from '@/components/DialogProvider'
 import { useState, useEffect } from 'react'
 import { BlockSpinner, Spinner } from '@/components/Spinner'
@@ -8,6 +8,7 @@ interface Plan {
   id: string; name: string; label: string; semester: number | null
   require_repay: boolean; deduct_s1_repay: boolean; sort_order: number; is_active: boolean
   deadline: string; school_year: string; is_open: boolean; open_note: string; status?: string | null
+  semester_status?: Record<string, string> | null
   zone_ids: number[]; zone_id: number
 }
 
@@ -15,7 +16,7 @@ interface Zone { id: number; name: string }
 
 const emptyPlan = (): Omit<Plan, 'id' | 'school_year' | 'zone_id'> => ({
   name: '', label: '', semester: 1, require_repay: false, deduct_s1_repay: false,
-  sort_order: 0, is_active: true, deadline: '', is_open: false, open_note: '', zone_ids: [], status: 'not_open',
+  sort_order: 0, is_active: true, deadline: '', is_open: false, open_note: '', zone_ids: [], status: 'not_open', semester_status: {},
 })
 
 export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChanged }: { activeSchoolYear: string; isSuperAdmin: boolean; onPlansChanged?: () => void }) {
@@ -54,7 +55,7 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
       name: p.name, label: p.label, semester: p.semester,
       require_repay: p.require_repay, deduct_s1_repay: p.deduct_s1_repay ?? false,
       sort_order: p.sort_order, is_active: p.is_active, deadline: p.deadline || '',
-      is_open: p.is_open ?? false, open_note: p.open_note || '', status: planStatusOf(p),
+      is_open: p.is_open ?? false, open_note: p.open_note || '', status: planStatusOf(p), semester_status: semesterStatusesOf(p) ?? {},
       zone_ids: p.zone_ids || (p.zone_id ? [p.zone_id] : []),
     })
     setMsg(''); setShowModal(true)
@@ -142,14 +143,15 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
     load(); onPlansChanged?.()
   }
 
-  async function setStatus(p: Plan, status: PlanStatus) {
-    if (planStatusOf(p) === status) return
+  async function setStatus(p: Plan, status: PlanStatus, sem?: number) {
+    if (planStatusOf(p, sem) === status) return
+    const target = `${p.label || p.name}${sem ? `・第${sem}學期` : ''}`
     if (status === 'closed' && !(await dialog.confirm({
-      title: `將「${p.label || p.name}」設為已結案`,
+      title: `將「${target}」設為已結案`,
       message: '結案後學校只能檢視已填報的金額與已上傳的檔案，無法再修改或上傳。之後仍可改回「已開放」。',
       confirmLabel: '設為已結案',
     }))) return
-    const res = await fetch('/api/admin/plans', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, status }) })
+    const res = await fetch('/api/admin/plans', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, status, ...(sem ? { status_semester: sem } : {}) }) })
     if (!res.ok) {
       const d = await res.json().catch(() => ({}))
       await dialog.alert({ title: '無法變更送件狀態', message: d.error || `HTTP ${res.status}`, tone: 'error' })
@@ -263,7 +265,18 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{p.deadline || '—'}</td>
                   <td className="px-4 py-3 text-center">
-                    <PlanStatusSwitch value={planStatusOf(p)} onChange={st => setStatus(p, st)} label={`${p.label || p.name}送件狀態`} />
+                    {p.semester == null ? (
+                      <div className="inline-flex flex-col items-end gap-1">
+                        {[1, 2].map(sem => (
+                          <div key={sem} className="flex items-center gap-1.5">
+                            <span className="text-[11px] text-gray-400">第{sem}學期</span>
+                            <PlanStatusSwitch value={planStatusOf(p, sem)} onChange={st => setStatus(p, st, sem)} label={`${p.label || p.name}第${sem}學期送件狀態`} />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <PlanStatusSwitch value={planStatusOf(p)} onChange={st => setStatus(p, st)} label={`${p.label || p.name}送件狀態`} />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-center">
                     <button onClick={() => toggleActive(p)}
@@ -339,10 +352,24 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
                 placeholder="例：115學年度開學後開放" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             <div className="flex flex-wrap items-center gap-6">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="font-medium text-gray-700">送件狀態</span>
-                <PlanStatusSwitch value={planStatusOf(form)} onChange={st => setForm(f => ({ ...f, status: st, is_open: st === 'open' }))} label="送件狀態" />
-              </div>
+              {form.semester == null ? (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+                  <span className="font-medium text-gray-700">送件狀態</span>
+                  {[1, 2].map(sem => (
+                    <div key={sem} className="flex items-center gap-1.5">
+                      <span className="text-xs text-gray-500">第{sem}學期</span>
+                      <PlanStatusSwitch value={planStatusOf(form, sem)}
+                        onChange={st => setForm(f => ({ ...f, semester_status: { ...(semesterStatusesOf(f) ?? {}), [sem]: st } }))}
+                        label={`第${sem}學期送件狀態`} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium text-gray-700">送件狀態</span>
+                  <PlanStatusSwitch value={planStatusOf(form)} onChange={st => setForm(f => ({ ...f, status: st, is_open: st === 'open' }))} label="送件狀態" />
+                </div>
+              )}
               <label className="flex items-center gap-2 cursor-pointer text-sm">
                 <input type="checkbox" checked={form.require_repay} onChange={e => setForm(f => ({ ...f, require_repay: e.target.checked }))} className="w-4 h-4 rounded" />
                 須繳回賸餘款

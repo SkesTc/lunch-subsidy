@@ -21,6 +21,6 @@ export interface Plan {
   id: string; name: string; label: string; semester: number | null
   require_repay: boolean; deduct_s1_repay: boolean; sort_order: number; is_active: boolean
   deadline: string; school_year: string
-  is_open?: boolean; status?: string | null
+  is_open?: boolean; status?: string | null; semester_status?: Record<string, string> | null
 }
 export interface PlanAmount { school_id: number; plan_id: string; semester: number; amount: number }

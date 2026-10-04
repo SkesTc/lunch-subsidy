@@ -362,7 +362,7 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
           {([1, 2] as const).map(s => (
             <button key={s} onClick={() => { setPlanSem(s); setSelected(new Set()) }}
               className={`px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer transition-colors ${planSem === s ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-blue-300'}`}>
-              第{s}學期
+              第{s}學期{planStatusOf(selectedPlan, s) !== 'open' && <span className="ml-1.5 text-[11px] opacity-75">（{PLAN_STATUS_LABELS[planStatusOf(selectedPlan, s)]}）</span>}
             </button>
           ))}
         </div>
@@ -675,7 +675,7 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
           semester={effectiveSem}
           planId={selectedPlan?.id ?? null}
           remitApplies={selectedPlan ? selectedPlan.require_repay && !(selectedPlan.deduct_s1_repay && effectiveSem === 1) : effectiveSem === 2}
-          planStatus={selectedPlan ? planStatusOf(selectedPlan) : null}
+          planStatus={selectedPlan ? planStatusOf(selectedPlan, effectiveSem) : null}
           onClose={() => setNotifyOpen(false)}
           onNarrow={ids => setSelected(new Set(ids))}
           onSent={(ok, total) => {

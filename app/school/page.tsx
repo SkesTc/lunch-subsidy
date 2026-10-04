@@ -172,7 +172,7 @@ export default async function SchoolDashboard() {
           {hasPlans ? (
             /* 計畫模式：每個計畫一張小卡（全學年計畫展開成兩張） */
             <div className="space-y-3">
-              {[...visiblePlans].sort((a, b) => Number(planStatusOf(a) === 'closed') - Number(planStatusOf(b) === 'closed')).map((plan, i) => {
+              {visiblePlans.map((plan, i) => {
                 const isFullYear = plan.semester == null
                 const color = colors[i % colors.length]
                 const colorMap: Record<Color, string> = {
@@ -295,12 +295,14 @@ export default async function SchoolDashboard() {
                 }]}
               />
             )}
-            {visiblePlans.map((plan, i) => {
-              const isFullYear = plan.semester == null
-              const sems = isFullYear ? [1, 2] : [plan.semester ?? 1]
-              return sems.map(sem => {
+            {visiblePlans
+              .flatMap((plan, i) => (plan.semester == null ? [1, 2] : [plan.semester ?? 1]).map(sem => ({ plan, sem, i })))
+              // 已結案的學期卡片排到最下方
+              .sort((a, b) => Number(planStatusOf(a.plan, a.sem) === 'closed') - Number(planStatusOf(b.plan, b.sem) === 'closed'))
+              .map(({ plan, sem, i }) => {
+                const isFullYear = plan.semester == null
                 const settle = planSettleMap[`${plan.id}_${sem}`] || (isFullYear ? null : planSettleMap[plan.id])
-                const status = planStatusOf(plan)
+                const status = planStatusOf(plan, sem)
                 const open = status === 'open'
                 const deadlineText = plan.deadline || plan.open_note || (open ? '開放中' : '尚未開放')
                 const label = isFullYear ? `${plan.label}・第${sem}學期` : plan.label
@@ -338,8 +340,7 @@ export default async function SchoolDashboard() {
                     steps={steps}
                   />
                 )
-              })
-            })}
+              })}
           </>
         ) : (
           /* 學期模式（原本） */

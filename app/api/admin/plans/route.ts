@@ -3,11 +3,24 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { getUserZoneRole, isSuperAdmin, isZoneAdmin } from '@/lib/zones'
 
 import { NextResponse } from 'next/server'
-import { PLAN_STATUSES, type PlanStatus } from '@/lib/planStatus'
+import { PLAN_STATUSES, aggregateStatus, isPlanStatus, planStatusOf, type PlanStatus } from '@/lib/planStatus'
 
 // GET /api/admin/plans
 const MISSING_STATUS_COLUMN = '請先在 Supabase 執行 lib/migration-plan-status.sql（新增計畫狀態欄位），才能使用「已結案」'
 const isMissingStatusColumn = (msg?: string) => !!msg && /status/.test(msg) && /column|schema cache/i.test(msg)
+const MISSING_SEMESTER_STATUS = '請先在 Supabase 執行 lib/migration-plan-semester-status.sql（新增各學期送件狀態欄位），才能分開設定兩個學期'
+const isMissingSemesterStatusColumn = (msg?: string) => !!msg && /semester_status/.test(msg)
+
+function sanitizeSemesterStatus(v: unknown): Partial<Record<'1' | '2', PlanStatus>> {
+  const out: Partial<Record<'1' | '2', PlanStatus>> = {}
+  if (v && typeof v === 'object') {
+    for (const k of ['1', '2'] as const) {
+      const st = (v as Record<string, unknown>)[k]
+      if (isPlanStatus(st)) out[k] = st
+    }
+  }
+  return out
+}
 
 // 由請求取得送件狀態，並同步舊欄位 is_open
 function statusFields(status: unknown, isOpen: unknown): { status?: PlanStatus; is_open?: boolean } {
@@ -59,7 +72,12 @@ export async function POST(req: Request) {
   if (resolvedZoneIds.length === 0) return NextResponse.json({ error: '請選擇至少一個區別' }, { status: 400 })
   if (!name) return NextResponse.json({ error: '請填寫計畫名稱' }, { status: 400 })
 
-  const sf = statusFields(status ?? 'not_open', is_open)
+  // 全年計畫可帶入各學期狀態，計畫層級狀態取兩學期綜合
+  const semStatus = (semester ?? null) === null ? sanitizeSemesterStatus(body.semester_status) : {}
+  const hasSemStatus = Object.keys(semStatus).length > 0
+  const sf = hasSemStatus
+    ? statusFields(aggregateStatus([semStatus['1'] ?? 'not_open', semStatus['2'] ?? 'not_open']), undefined)
+    : statusFields(status ?? 'not_open', is_open)
   const row = {
       zone_ids: resolvedZoneIds,
       zone_id: resolvedZoneIds[0],
@@ -68,8 +86,14 @@ export async function POST(req: Request) {
       require_repay: require_repay ?? false, deduct_s1_repay: deduct_s1_repay ?? false,
       deadline: deadline || '', open_note: open_note || '',
       sort_order: sort_order ?? 0, is_active: is_active ?? true, ...sf,
+      ...(hasSemStatus ? { semester_status: semStatus } : {}),
   }
   let { data, error } = await supabaseAdmin.from('plans').insert(row).select().single()
+  if (error && isMissingSemesterStatusColumn(error.message)) {
+    if (semStatus['1'] !== semStatus['2']) return NextResponse.json({ error: MISSING_SEMESTER_STATUS }, { status: 400 })
+    const { semester_status: _omitSem, ...withoutSem } = row as typeof row & { semester_status?: unknown }  // eslint-disable-line @typescript-eslint/no-unused-vars
+    ;({ data, error } = await supabaseAdmin.from('plans').insert(withoutSem).select().single())
+  }
   if (error && isMissingStatusColumn(error.message)) {
     if (sf.status === 'closed') return NextResponse.json({ error: MISSING_STATUS_COLUMN }, { status: 400 })
     const { status: _omit, ...legacy } = row  // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -93,7 +117,7 @@ export async function PATCH(req: Request) {
           require_repay, deduct_s1_repay, deadline, open_note, zone_ids } = body
 
   // 確認計畫屬於有權限的區
-  const { data: plan } = await supabaseAdmin.from('plans').select('zone_ids, zone_id').eq('id', id).single()
+  const { data: plan } = await supabaseAdmin.from('plans').select('*').eq('id', id).single()
   if (!plan) return NextResponse.json({ error: '計畫不存在' }, { status: 404 })
 
   // 檢查權限：super_admin 可改任何；zone_admin 需在 zone_ids 中
@@ -111,7 +135,19 @@ export async function PATCH(req: Request) {
   if (school_year !== undefined) payload.school_year = school_year
   if (semester !== undefined) payload.semester = semester
   if (is_active !== undefined) payload.is_active = is_active
-  Object.assign(payload, statusFields(status, is_open))
+  // 全年計畫：可只切換某一學期（status + status_semester），或一次送出兩學期（semester_status）
+  const planSemester = semester !== undefined ? semester : plan.semester
+  const statusSemester = body.status_semester === 1 || body.status_semester === 2 ? String(body.status_semester) as '1' | '2' : null
+  if (planSemester == null && (statusSemester || body.semester_status !== undefined)) {
+    const merged = { ...sanitizeSemesterStatus(plan.semester_status), ...sanitizeSemesterStatus(body.semester_status) }
+    if (statusSemester && isPlanStatus(status)) merged[statusSemester] = status
+    const s1 = merged['1'] ?? planStatusOf(plan, 1)
+    const s2 = merged['2'] ?? planStatusOf(plan, 2)
+    payload.semester_status = { '1': s1, '2': s2 }
+    Object.assign(payload, statusFields(aggregateStatus([s1, s2]), undefined))
+  } else {
+    Object.assign(payload, statusFields(status, is_open))
+  }
   if (sort_order !== undefined) payload.sort_order = sort_order
   if (require_repay !== undefined) payload.require_repay = require_repay
   if (deduct_s1_repay !== undefined) payload.deduct_s1_repay = deduct_s1_repay
@@ -124,6 +160,9 @@ export async function PATCH(req: Request) {
   }
 
   let { error } = await supabaseAdmin.from('plans').update(payload).eq('id', id)
+  if (error && isMissingSemesterStatusColumn(error.message)) {
+    return NextResponse.json({ error: MISSING_SEMESTER_STATUS }, { status: 400 })
+  }
   if (error && isMissingStatusColumn(error.message)) {
     if (payload.status === 'closed') return NextResponse.json({ error: MISSING_STATUS_COLUMN }, { status: 400 })
     delete payload.status
