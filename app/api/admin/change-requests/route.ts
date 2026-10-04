@@ -276,10 +276,6 @@ export async function PATCH(req: Request) {
     }
 
   } else if (action === 'rejected') {
-    const isReuploadReject = cr.request_type === 'scan_reupload' || cr.request_type === 'remittance_reupload'
-    const isScanReject = cr.request_type === 'scan_reupload'
-    const existingFileField = isScanReject ? 'scan_file_path' : 'remittance_file_path'
-
     // 待審檔案被拒絕：搬移至該計畫資料夾下的「回收桶」子資料夾，而非直接刪除
     const deletePending = cr.pending_file_path && gasUrl && !cr.pending_file_path.includes('/')
       ? gasMoveToTrash({ gasUrl, gasSecret, fileId: cr.pending_file_path })
@@ -292,31 +288,6 @@ export async function PATCH(req: Request) {
         .select('email, contact_name, contact_title, contact_phone')
         .eq('school_id', cr.school_id).eq('is_admin', false).single(),
     ])
-
-    // reupload 被拒絕：同時清除原本已核准的檔案
-    if (isReuploadReject) {
-      const settleQ = cr.plan_id
-        ? supabaseAdmin.from('settlements').select(`id, ${existingFileField}`)
-            .eq('school_id', cr.school_id).eq('plan_id', cr.plan_id)
-            .eq('semester', cr.semester).eq('school_year', schoolYear).maybeSingle()
-        : supabaseAdmin.from('settlements').select(`id, ${existingFileField}`)
-            .eq('school_id', cr.school_id).eq('semester', cr.semester).eq('school_year', schoolYear).is('plan_id', null).maybeSingle()
-      const { data: settle } = await settleQ
-      if (settle) {
-        const oldPath = (settle as Record<string, unknown>)[existingFileField] as string | null
-        // 刪除舊的已核准檔案（非阻斷）
-        if (oldPath) {
-          const del = !oldPath.includes('/') && gasUrl
-            ? gasDeleteFile({ gasUrl, gasSecret, fileId: oldPath })
-            : supabaseAdmin.storage.from(BUCKET).remove([oldPath])
-          del.catch(e => console.error('delete old approved file:', e))
-        }
-        // 清除 settlement 的檔案欄位
-        const clearData: Record<string, unknown> = { [existingFileField]: null, updated_at: now }
-        if (isScanReject) clearData.status = 'downloaded'
-        await supabaseAdmin.from('settlements').update(clearData).eq('id', (settle as { id: string }).id)
-      }
-    }
 
     // 寄信
     await sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, schoolName, admin_note, isApproved: false })
