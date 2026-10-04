@@ -1,5 +1,6 @@
 'use client'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
+import { SearchIcon, FolderIcon, DownloadIcon, ChevronDownIcon, MailIcon } from '@/components/icons'
 import { formatAmount } from '@/lib/utils'
 import type { School, AmountRow, BankRow, SettleRow, ProfileRow, ContactInfo, Plan, PlanAmount } from '../types'
 import { BatchPrintModal } from '../components/BatchPrintModal'
@@ -36,8 +37,8 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
   const [scanFilter, setScanFilter] = useState<StatusFilter>('all')
   const [remitFilter, setRemitFilter] = useState<StatusFilter>('all')
   const [expenseFilter, setExpenseFilter] = useState<StatusFilter>('all')
-  const [showRemittanceMenu, setShowRemittanceMenu] = useState(false)
-  const [showBatchPrintMenu, setShowBatchPrintMenu] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
   const [batchPrint, setBatchPrint] = useState<'scan' | 'remittance' | null>(null)
   const [hostSchool, setHostSchool] = useState('')
   const [planName, setPlanName] = useState('')
@@ -107,6 +108,15 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
       if (Array.isArray(d)) setSettleRequests(d)
     }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (!showExportMenu) return
+    const onDown = (e: MouseEvent) => { if (!exportMenuRef.current?.contains(e.target as Node)) setShowExportMenu(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowExportMenu(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+  }, [showExportMenu])
 
   const districts = Array.from(new Set(schools.map(s => s.district))).sort()
   const zoneIds = Array.from(new Set(schools.map(s => s.zone_id).filter((id): id is number => !!id))).sort((a, b) => a - b)
@@ -444,99 +454,94 @@ export default function OverviewTab({ schools, amounts: initAmounts, banks, sett
       </div>
 
       {/* 工具列 */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-center">
-        {zoneIds.length > 1 && (
-          <select value={zoneFilter ?? ''} onChange={e => setZoneFilter(e.target.value === '' ? null : Number(e.target.value))}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
-            <option value="">全部分區</option>
-            {zoneIds.map(id => <option key={id} value={id}>{zonesMap[id] || `分區 ${id}`}</option>)}
+      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+        <div className="flex flex-wrap gap-3 items-center">
+          {zoneIds.length > 1 && (
+            <select value={zoneFilter ?? ''} onChange={e => setZoneFilter(e.target.value === '' ? null : Number(e.target.value))}
+              aria-label="分區" className="border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="">全部分區</option>
+              {zoneIds.map(id => <option key={id} value={id}>{zonesMap[id] || `分區 ${id}`}</option>)}
+            </select>
+          )}
+          <select value={districtFilter} onChange={e => setDistrictFilter(e.target.value)} aria-label="行政區" className="border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="">全部行政區</option>
+            {districts.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
-        )}
-        <select value={districtFilter} onChange={e => setDistrictFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
-          <option value="">全部行政區</option>
-          {districts.map(d => <option key={d} value={d}>{d}</option>)}
-        </select>
+          <label className="relative inline-flex items-center">
+            <SearchIcon size={14} className="absolute left-2.5 text-gray-400" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="搜尋學校名稱或編號" aria-label="搜尋學校"
+              className="border border-gray-300 rounded-lg pl-8 pr-3 py-2 text-sm w-52 outline-none focus:ring-2 focus:ring-blue-500" />
+          </label>
 
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="搜尋學校名稱或編號..."
-          className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-48 outline-none focus:ring-2 focus:ring-blue-500" />
+          <span className="flex-1" />
 
-        <div className="relative">
-          <button onClick={() => setShowRemittanceMenu(v => !v)}
-            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer flex items-center gap-1.5">
-            📋 匯款清冊 ▾
-          </button>
-          {showRemittanceMenu && (
-            <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[160px] py-1"
-              onMouseLeave={() => setShowRemittanceMenu(false)}>
-              {[
-                { label: '全部', bank: '' },
-                { label: '臺灣銀行', bank: 'taiwan' },
-                { label: '非臺灣銀行', bank: 'other' },
-              ].map(({ label, bank }) => (
-                <a key={bank}
-                  href={`/api/admin/export-remittance?semester=${effectiveSem}${selectedPlan ? `&plan_id=${selectedPlan.id}` : ''}${bank ? `&bank=${bank}` : ''}`}
-                  onClick={() => setShowRemittanceMenu(false)}
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-teal-50 hover:text-teal-700 cursor-pointer">
-                  {label}
-                </a>
-              ))}
-            </div>
+          {(driveFolderUrl || driveFolderId) ? (
+            <a href={driveFolderUrl || `https://drive.google.com/drive/folders/${driveFolderId}`} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100">
+              <FolderIcon /> 雲端資料夾
+            </a>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-gray-400 cursor-default" title="請先在系統設定填入 Google Drive 資料夾 ID">
+              <FolderIcon /> 雲端資料夾
+            </span>
           )}
+
+          <div className="relative" ref={exportMenuRef}>
+            <button onClick={() => setShowExportMenu(v => !v)} aria-haspopup="true" aria-expanded={showExportMenu}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:border-gray-400 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+              <DownloadIcon /> 匯出 <ChevronDownIcon />
+            </button>
+            {showExportMenu && (
+              <div role="menu" className="absolute right-0 top-full mt-1.5 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[240px] p-1.5">
+                <p className="px-2.5 pt-1.5 pb-0.5 text-[11px] font-semibold tracking-wide text-gray-400">清冊（Excel）</p>
+                {[
+                  { label: '全部', bank: '' },
+                  { label: '臺灣銀行', bank: 'taiwan' },
+                  { label: '非臺灣銀行', bank: 'other' },
+                ].map(({ label, bank }) => (
+                  <a key={bank} role="menuitem"
+                    href={`/api/admin/export-remittance?semester=${effectiveSem}${selectedPlan ? `&plan_id=${selectedPlan.id}` : ''}${bank ? `&bank=${bank}` : ''}`}
+                    onClick={() => setShowExportMenu(false)}
+                    className="flex justify-between gap-3 px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-blue-50">
+                    匯款清冊 <span className="text-gray-400">{label}</span>
+                  </a>
+                ))}
+                <button role="menuitem" onClick={() => { setShowExportMenu(false); exportSurplus() }}
+                  className="block w-full text-left px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-blue-50 cursor-pointer">賸餘款清冊</button>
+                <hr className="my-1.5 border-gray-100" />
+                <p className="px-2.5 pt-1 pb-0.5 text-[11px] font-semibold tracking-wide text-gray-400">列印</p>
+                <button role="menuitem" onClick={() => { setShowExportMenu(false); openSummaryPrint() }}
+                  className="block w-full text-left px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-blue-50 cursor-pointer">全區經費收支結算表</button>
+                <hr className="my-1.5 border-gray-100" />
+                <p className="px-2.5 pt-1 pb-0.5 text-[11px] font-semibold tracking-wide text-gray-400">批次合併 PDF（每 50 校一份）</p>
+                {[
+                  { label: '經費收支結算表', type: 'scan' as const },
+                  { label: '賸餘款送款憑單', type: 'remittance' as const },
+                ].map(({ label, type }) => (
+                  <button key={type} role="menuitem" onClick={() => { setShowExportMenu(false); setBatchPrint(type) }}
+                    className="block w-full text-left px-2.5 py-1.5 rounded-md text-sm text-gray-700 hover:bg-blue-50 cursor-pointer">{label}</button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
 
-        <button onClick={exportSurplus}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
-          💰 賸餘款清冊
-        </button>
-
-        <button onClick={openSummaryPrint}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
-          📑 經費收支結算表
-        </button>
-
-        <div className="relative">
-          <button onClick={() => setShowBatchPrintMenu(v => !v)}
-            className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer flex items-center gap-1.5">
-            📦 批次合併 PDF ▾
-          </button>
-          {showBatchPrintMenu && (
-            <div className="absolute left-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg min-w-[180px] py-1"
-              onMouseLeave={() => setShowBatchPrintMenu(false)}>
-              {[
-                { label: '經費收支結算表', type: 'scan' },
-                { label: '賸餘款送款憑單', type: 'remittance' },
-              ].map(({ label, type }) => (
-                <button key={type} onClick={() => { setShowBatchPrintMenu(false); setBatchPrint(type as 'scan' | 'remittance') }}
-                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-700 cursor-pointer">
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          {batchPrint && (
-            <BatchPrintModal type={batchPrint} semester={effectiveSem} planId={selectedPlan?.id ?? null} schoolYear={activeSchoolYear} onClose={() => setBatchPrint(null)} />
-          )}
-        </div>
-
-        {(driveFolderUrl || driveFolderId) ? (
-          <a href={driveFolderUrl || `https://drive.google.com/drive/folders/${driveFolderId}`} target="_blank" rel="noopener noreferrer"
-            className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium">
-            ☁️ 雲端資料夾
-          </a>
-        ) : (
-          <span className="bg-gray-300 text-gray-500 px-4 py-2 rounded-lg text-sm font-medium cursor-default" title="請先在系統設定填入 Google Drive 資料夾 ID">
-            ☁️ 雲端資料夾
-          </span>
-        )}
         {selected.size > 0 && (
-          <button onClick={() => setNotifyOpen(true)}
-            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-pointer">
-            📧 催收通知（已選 {selected.size} 校）
-          </button>
+          <div className="flex flex-wrap items-center gap-3 bg-blue-50 rounded-lg px-3 py-2 text-sm">
+            <span className="text-gray-700">已選 <b>{selected.size}</b> 校</span>
+            <span className="flex-1" />
+            <button onClick={() => setSelected(new Set())} className="px-3 py-1.5 rounded-lg text-gray-600 hover:bg-blue-100 cursor-pointer">取消選取</button>
+            <button onClick={() => setNotifyOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium text-white bg-blue-600 hover:bg-blue-700 cursor-pointer">
+              <MailIcon /> 寄送催收通知
+            </button>
+          </div>
         )}
       </div>
+      {batchPrint && (
+        <BatchPrintModal type={batchPrint} semester={effectiveSem} planId={selectedPlan?.id ?? null} schoolYear={activeSchoolYear} onClose={() => setBatchPrint(null)} />
+      )}
 
       {/* 學校清單 */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
