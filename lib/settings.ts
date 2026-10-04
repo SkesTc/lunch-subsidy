@@ -205,22 +205,6 @@ export async function writeGlobalSettings(updates: Record<string, unknown>) {
   invalidateSettingsCache()
 }
 
-/** 整份覆寫全域設定（僅供資料清理工具使用；一般儲存請用 writeGlobalSettings） */
-export async function replaceGlobalSettingsRaw(obj: Record<string, unknown>) {
-  const t = await readTable()
-  if (t.state === 'missing') {
-    await writeFile(obj)
-  } else {
-    const remove = Object.keys(t.data).filter(k => !(k in obj))
-    if (remove.length > 0) {
-      const { error } = await supabaseAdmin.from(TABLE).delete().in('key', remove)
-      if (error) throw new Error(error.message)
-    }
-    await upsertRows(obj)
-  }
-  invalidateSettingsCache()
-}
-
 /** 讓外部可以主動清除快取（儲存設定後呼叫） */
 export function invalidateSettingsCache() {
   _cacheMap.clear()

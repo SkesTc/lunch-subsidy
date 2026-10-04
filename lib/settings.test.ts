@@ -25,7 +25,7 @@ vi.mock('@/lib/supabase', () => ({
   },
 }))
 
-const { readGlobalSettingsRaw, writeGlobalSettings, replaceGlobalSettingsRaw } = await import('./settings')
+const { readGlobalSettingsRaw, writeGlobalSettings } = await import('./settings')
 const fileJson = () => JSON.parse(db.file || '{}')
 
 beforeEach(() => {
@@ -72,10 +72,5 @@ describe('全域設定：已改用資料表', () => {
     await writeGlobalSettings({ admin_name: '王美惠', block1_deadline: '' })
     expect(db.table!.has('admin_name')).toBe(false)
     expect(db.table!.get('block1_deadline')).toBe('')
-  })
-
-  it('整份覆寫會移除不在新內容中的設定', async () => {
-    await replaceGlobalSettingsRaw({ system_name: '新名稱' })
-    expect(Object.fromEntries(db.table!)).toEqual({ system_name: '新名稱' })
   })
 })
