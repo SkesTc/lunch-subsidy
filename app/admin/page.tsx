@@ -6,6 +6,7 @@ import { getSettingsForZone } from '@/lib/settings'
 import { getUserZoneRole, isSuperAdmin, getZoneSchoolIds } from '@/lib/zones'
 import Navbar from '@/components/Navbar'
 import AdminDashboardClient from './AdminDashboardClient'
+import { DialogProvider } from '@/components/DialogProvider'
 
 export default async function AdminPage() {
   const session = await auth()
@@ -79,6 +80,7 @@ export default async function AdminPage() {
     <div className="min-h-screen bg-gray-50">
       <Navbar email={session.user.email ?? undefined} isAdmin={true} schoolYear={activeSchoolYear} systemName={settings.system_name} adminManualUrl={settings.admin_manual_url as string || ''} currentPage="admin" />
       <main className="max-w-7xl mx-auto px-4 py-8">
+        <DialogProvider>
         <AdminDashboardClient
           schools={schools || []}
           amounts={amounts || []}
@@ -93,6 +95,7 @@ export default async function AdminPage() {
           adminManualUrl={settings.admin_manual_url as string || ''}
           userRole={userRole}
         />
+        </DialogProvider>
       </main>
     </div>
   )

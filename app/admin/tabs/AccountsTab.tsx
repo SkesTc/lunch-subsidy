@@ -1,4 +1,5 @@
 'use client'
+import { useDialog } from '@/components/DialogProvider'
 import { useState, useEffect } from 'react'
 import { Spinner, BlockSpinner } from '@/components/Spinner'
 
@@ -29,6 +30,7 @@ export default function AccountsTab({
   currentUserEmail: string
   isSuperAdmin: boolean
 }) {
+  const dialog = useDialog()
   const [accounts, setAccounts] = useState<AccountRow[]>([])
   const [loading, setLoading] = useState(true)
   const [zones, setZones] = useState<Zone[]>([])
@@ -107,7 +109,7 @@ export default function AccountsTab({
   }
 
   async function handleUnbind(email: string) {
-    if (!confirm(`確定要解除 ${email} 的學校綁定？`)) return
+    if (!(await dialog.confirm({ title: '解除學校綁定', message: email, confirmLabel: '解除綁定', danger: true }))) return
     await fetch('/api/admin/accounts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -117,7 +119,7 @@ export default function AccountsTab({
   }
 
   async function handleRevokeAdmin(email: string) {
-    if (!confirm(`確定要撤銷 ${email} 的管理員權限？`)) return
+    if (!(await dialog.confirm({ title: '撤銷管理員權限', message: email, confirmLabel: '撤銷', danger: true }))) return
     await fetch('/api/admin/accounts', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -127,7 +129,7 @@ export default function AccountsTab({
   }
 
   async function handleDelete(email: string) {
-    if (!confirm(`確定要刪除帳號 ${email}？此操作無法復原。`)) return
+    if (!(await dialog.confirm({ title: '刪除帳號', message: `${email}\n此操作無法復原。`, confirmLabel: '刪除', danger: true }))) return
     await fetch('/api/admin/accounts', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },

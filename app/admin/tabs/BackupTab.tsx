@@ -1,4 +1,5 @@
 'use client'
+import { useDialog } from '@/components/DialogProvider'
 import { useState, useEffect } from 'react'
 import { Spinner, BlockSpinner } from '@/components/Spinner'
 
@@ -42,6 +43,7 @@ const TYPE_LABELS: Record<string, string> = {
 }
 
 export default function BackupTab() {
+  const dialog = useDialog()
   const [settings, setSettings] = useState<BackupSettings>({
     backup_folder_id: '', backup_enabled: 'false',
     backup_frequency: 'daily', backup_hour: '2', backup_weekday: '1',
@@ -143,7 +145,7 @@ export default function BackupTab() {
   }
 
   async function deleteBackup(fileId: string) {
-    if (!confirm('確定要刪除此備份？')) return
+    if (!(await dialog.confirm({ title: '刪除此備份', message: '刪除後無法復原。', confirmLabel: '刪除', danger: true }))) return
     await fetch('/api/admin/backup', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },

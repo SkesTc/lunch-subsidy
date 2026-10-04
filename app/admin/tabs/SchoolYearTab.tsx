@@ -1,8 +1,10 @@
 'use client'
+import { useDialog } from '@/components/DialogProvider'
 import { useState, useEffect } from 'react'
 import { Spinner, BlockSpinner } from '@/components/Spinner'
 
 export default function SchoolYearTab() {
+  const dialog = useDialog()
   const [years, setYears] = useState<string[]>([])
   const [active, setActive] = useState('')
   const [newYear, setNewYear] = useState('')
@@ -21,7 +23,7 @@ export default function SchoolYearTab() {
 
   async function switchYear(y: string) {
     if (y === active) return
-    if (!confirm(`確定要切換至 ${y} 學年度？儀表板資料將重新載入。`)) return
+    if (!(await dialog.confirm({ title: `切換至 ${y} 學年度`, message: '切換後儀表板資料將重新載入。', confirmLabel: '切換' }))) return
     setLoading(true)
     const res = await fetch('/api/admin/school-years', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -53,7 +55,7 @@ export default function SchoolYearTab() {
   }
 
   async function clearReviews(y: string) {
-    if (!confirm(`確定要清除 ${y} 學年度所有審核紀錄？\n\n此操作不可復原，將刪除該學年度的所有申請審核記錄（含實支金額修改、檔案上傳/重新上傳申請）。`)) return
+    if (!(await dialog.confirm({ title: `清除 ${y} 學年度審核紀錄`, message: '將刪除該學年度的所有申請審核記錄（含實支金額修改、檔案上傳／重新上傳申請）。\n此操作無法復原。', confirmLabel: '確認清除', danger: true }))) return
     setClearing(y); setMsg('')
     const res = await fetch('/api/admin/school-years', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

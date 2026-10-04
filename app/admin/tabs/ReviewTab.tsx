@@ -1,4 +1,5 @@
 'use client'
+import { useDialog } from '@/components/DialogProvider'
 import React, { useState, useEffect } from 'react'
 import { formatAmount } from '@/lib/utils'
 import { Spinner, BlockSpinner } from '@/components/Spinner'
@@ -14,6 +15,7 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
   plans: Plan[]
   onReviewDone: () => void
 }) {
+  const dialog = useDialog()
   interface ChangeRequest { school_id: number; school_name: string; school_code: number; school_year: string; status: string; new_info: Record<string, string>; file_id: string; submitted_at: string; admin_note: string; reviewed_at: string | null }
   interface SettleReq {
     id: string; school_id: number; semester: number; plan_id: string | null; plan_label: string | null
@@ -69,7 +71,7 @@ export default function ReviewTab({ activeSchoolYear, schools, profiles, contact
       load(); onReviewDone()
     } else {
       const d = await res.json().catch(() => ({}))
-      alert(`操作失敗：${d.error || res.status}`)
+      await dialog.alert({ title: '操作失敗', message: String(d.error || `HTTP ${res.status}`), tone: 'error' })
     }
   }
 

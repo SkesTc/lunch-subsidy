@@ -1,4 +1,5 @@
 'use client'
+import { useDialog } from '@/components/DialogProvider'
 import React, { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { BlockSpinner } from '@/components/Spinner'
@@ -26,6 +27,7 @@ export default function AdminDashboardClient({
   adminManualUrl?: string
   userRole?: string
 }) {
+  const dialog = useDialog()
   const [tab, setTab] = useState<Tab>('overview')
   const [pendingCount, setPendingCount] = useState(0)
   const [overviewKey, setOverviewKey] = useState(0)
@@ -47,13 +49,13 @@ export default function AdminDashboardClient({
   const [rootInitingFolders, setRootInitingFolders] = useState(false)
 
   async function handleInitFolders() {
-    if (!confirm('將在 Google Drive 根資料夾下，為所有分區建立本學年度的子資料夾，確定執行？')) return
+    if (!(await dialog.confirm({ title: '初始化資料夾', message: '將在 Google Drive 根資料夾下，為所有分區建立本學年度的子資料夾。', confirmLabel: '開始建立' }))) return
     setRootInitingFolders(true)
     const res = await fetch('/api/admin/init-drive-folders', { method: 'POST' })
     const d = await res.json().catch(() => ({}))
     setRootInitingFolders(false)
-    if (d.ok) alert(`資料夾建立完成：\n${(d.paths as string[]).join('\n')}`)
-    else alert(d.error || '建立失敗')
+    if (d.ok) await dialog.alert({ title: '資料夾建立完成', message: (d.paths as string[]).join('\n'), tone: 'success' })
+    else await dialog.alert({ title: '建立失敗', message: d.error || '請稍後再試', tone: 'error' })
   }
   const [showImpersonate, setShowImpersonate] = useState(false)
   const [impersonating, setImpersonating] = useState(false)

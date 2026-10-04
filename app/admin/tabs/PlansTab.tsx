@@ -1,4 +1,5 @@
 'use client'
+import { useDialog } from '@/components/DialogProvider'
 import { useState, useEffect } from 'react'
 import { BlockSpinner, Spinner } from '@/components/Spinner'
 
@@ -17,6 +18,7 @@ const emptyPlan = (): Omit<Plan, 'id' | 'school_year' | 'zone_id'> => ({
 })
 
 export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChanged }: { activeSchoolYear: string; isSuperAdmin: boolean; onPlansChanged?: () => void }) {
+  const dialog = useDialog()
   const [plans, setPlans] = useState<Plan[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [loading, setLoading] = useState(true)
@@ -88,7 +90,7 @@ export default function PlansTab({ activeSchoolYear, isSuperAdmin, onPlansChange
   }
 
   async function handleSeed() {
-    if (!confirm('建立預設計畫（免費午餐補助、課後照顧補助、班班有冷氣）？')) return
+    if (!(await dialog.confirm({ title: '建立預設計畫', message: '免費午餐補助、課後照顧補助、班班有冷氣', confirmLabel: '建立' }))) return
     setSeeding(true)
     await fetch('/api/admin/plans', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'seed', school_year: activeSchoolYear }) })
     setSeeding(false); load(); onPlansChanged?.()

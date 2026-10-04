@@ -1,4 +1,5 @@
 'use client'
+import { useDialog } from '@/components/DialogProvider'
 import { useState, useEffect } from 'react'
 import { BlockSpinner, Spinner } from '@/components/Spinner'
 
@@ -40,6 +41,7 @@ const SECTION_LABELS: Record<string, string> = {
 }
 
 export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
+  const dialog = useDialog()
   const [zones, setZones] = useState<Zone[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null)
@@ -180,7 +182,7 @@ export default function ZonesTab({ isSuperAdmin }: { isSuperAdmin: boolean }) {
   }
 
   async function removeAdmin(email: string) {
-    if (!confirm(`確定移除 ${email} 的管理員權限？`)) return
+    if (!(await dialog.confirm({ title: '移除管理員權限', message: email, confirmLabel: '移除', danger: true }))) return
     const res = await fetch('/api/admin/admin-roles', {
       method: 'DELETE', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
