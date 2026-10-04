@@ -4,6 +4,7 @@ import { getActiveSchoolYear, getGlobalSettings, getSettingsForZone, getGlobalSy
 import { getGasSettings, gasDeleteFile, gasMoveToTrash, gasRenameFile } from '@/lib/gas'
 import { calcRatio, calcSurplus, calcRepay } from '@/lib/utils'
 import { wrapEmailHtml } from '@/lib/email-html'
+import { REVIEW_DEFAULTS } from '@/lib/notifyTemplates'
 import { getUserZoneRole, getZoneSchoolIds } from '@/lib/zones'
 import { writeLog } from '@/lib/operationLog'
 import { NextResponse } from 'next/server'
@@ -341,11 +342,11 @@ async function sendReviewEmail({ profile, allSettings, gasUrl, gasSecret, cr, sc
     : ''
 
   const tmplSubject = isApproved
-    ? (allSettings.review_approve_subject || '【核銷系統】{semLabel}申請已核准')
-    : (allSettings.review_reject_subject || '【核銷系統】{semLabel}申請未通過')
+    ? (allSettings.review_approve_subject || REVIEW_DEFAULTS.approve.subject)
+    : (allSettings.review_reject_subject || REVIEW_DEFAULTS.reject.subject)
   const tmplBody = isApproved
-    ? (allSettings.review_approve_body || '{contactName} 您好，\n\n您提出的{semLabel}「{typeLabel}」申請已核准通過。\n\n{actionNote}\n\n{adminNote}臺中市第2區免費營養午餐核銷系統')
-    : (allSettings.review_reject_body || '{contactName} 您好，\n\n您提出的{semLabel}「{typeLabel}」申請未通過審核。\n\n{adminNote}如有疑問請聯絡承辦人員。\n\n臺中市第2區免費營養午餐核銷系統')
+    ? (allSettings.review_approve_body || REVIEW_DEFAULTS.approve.body)
+    : (allSettings.review_reject_body || REVIEW_DEFAULTS.reject.body)
 
   const applyVars = (t: string) => t
     .replace(/\{contactName\}/g, profile.contact_name || schoolName)
