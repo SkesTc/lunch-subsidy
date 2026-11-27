@@ -9,7 +9,7 @@ interface Settings {
   system_name: string; host_school: string; school_year: string
   admin_name: string; admin_title: string; admin_phone: string; bcc_email: string; bcc_enabled: string
   designer_name: string; designer_title: string
-  plan_name: string; manual_url: string; admin_manual_url: string; drive_folder_id: string
+  plan_name: string; manual_url: string; admin_manual_url: string; super_admin_manual_url: string; drive_folder_id: string
   gas_url: string; gas_secret: string; notify_subject: string; notify_body: string
   review_approve_subject: string; review_approve_body: string
   review_reject_subject: string; review_reject_body: string
@@ -140,6 +140,12 @@ export default function SettingsTab({ activeSchoolYear, handleInitFolders, initi
             <input value={settings.admin_manual_url || ''} onChange={e => set('admin_manual_url', e.target.value)}
               className={inputCls} placeholder="https://..." />
             <p className="text-xs text-gray-400 mt-1">後台右上角將顯示使用說明按鈕</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">超級使用者使用說明連結</label>
+            <input value={settings.super_admin_manual_url || ''} onChange={e => set('super_admin_manual_url', e.target.value)}
+              className={inputCls} placeholder="https://..." />
+            <p className="text-xs text-gray-400 mt-1">只有超級使用者會在後台右上角看到「超級使用者說明」按鈕</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Google Drive 上傳資料夾 ID</label>

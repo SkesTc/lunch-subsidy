@@ -63,7 +63,7 @@ export default async function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar email={session.user.email ?? undefined} isAdmin={true} schoolYear={activeSchoolYear} systemName={settings.system_name} adminManualUrl={settings.admin_manual_url as string || ''} currentPage="admin" />
+      <Navbar email={session.user.email ?? undefined} isAdmin={true} schoolYear={activeSchoolYear} systemName={settings.system_name} adminManualUrl={settings.admin_manual_url as string || ''} superAdminManualUrl={zoneUser && isSuperAdmin(zoneUser) ? (settings.super_admin_manual_url as string || '') : ''} currentPage="admin" />
       <main className="max-w-7xl mx-auto px-4 py-8">
         <DialogProvider>
         <AdminDashboardClient

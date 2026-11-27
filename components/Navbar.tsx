@@ -10,10 +10,11 @@ interface NavbarProps {
   systemName?: string
   manualUrl?: string
   adminManualUrl?: string
+  superAdminManualUrl?: string
   currentPage?: 'admin' | 'school'
 }
 
-export default function Navbar({ schoolName, email, isAdmin, schoolYear, systemName, manualUrl, adminManualUrl, currentPage }: NavbarProps) {
+export default function Navbar({ schoolName, email, isAdmin, schoolYear, systemName, manualUrl, adminManualUrl, superAdminManualUrl, currentPage }: NavbarProps) {
   return (
     <nav className="bg-blue-700 text-white px-4 sm:px-6 py-3 flex items-center justify-between gap-3 shadow">
       <div className="flex items-center gap-3 min-w-0">
@@ -46,6 +47,16 @@ export default function Navbar({ schoolName, email, isAdmin, schoolYear, systemN
             className="text-xs bg-blue-800 hover:bg-blue-900 px-3 py-1.5 rounded-lg transition-colors"
           >
             使用說明
+          </a>
+        )}
+        {superAdminManualUrl && (
+          <a
+            href={superAdminManualUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs bg-blue-800 hover:bg-blue-900 px-3 py-1.5 rounded-lg transition-colors"
+          >
+            超級使用者說明
           </a>
         )}
         <button
