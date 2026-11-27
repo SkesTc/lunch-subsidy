@@ -61,7 +61,7 @@ export async function POST(req: Request) {
   if (!zoneUser || !isZoneAdmin(zoneUser)) return NextResponse.json({ error: '無權限' }, { status: 403 })
 
   const body = await req.json()
-  const { zone_ids, name, label, plan_type, school_year, semester, require_repay, deduct_s1_repay,
+  const { zone_ids, name, label, school_year, semester, require_repay, deduct_s1_repay,
           deadline, open_note, sort_order, is_active, is_open, status } = body
 
   // 確認 zone_ids：區管理員只能設定自己的區
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
   const row = {
       zone_ids: resolvedZoneIds,
       zone_id: resolvedZoneIds[0],
-      name, label: label || name, plan_type: plan_type || 'lunch',
+      name, label: label || name,
       school_year: school_year || '', semester: semester ?? null,
       require_repay: require_repay ?? false, deduct_s1_repay: deduct_s1_repay ?? false,
       deadline: deadline || '', open_note: open_note || '',
@@ -113,7 +113,7 @@ export async function PATCH(req: Request) {
   if (!zoneUser || !isZoneAdmin(zoneUser)) return NextResponse.json({ error: '無權限' }, { status: 403 })
 
   const body = await req.json()
-  const { id, name, label, plan_type, school_year, semester, is_active, is_open, status, sort_order,
+  const { id, name, label, school_year, semester, is_active, is_open, status, sort_order,
           require_repay, deduct_s1_repay, deadline, open_note, zone_ids } = body
 
   // 確認計畫屬於有權限的區
@@ -131,7 +131,6 @@ export async function PATCH(req: Request) {
   const payload: Record<string, unknown> = {}
   if (name !== undefined) payload.name = name
   if (label !== undefined) payload.label = label
-  if (plan_type !== undefined) payload.plan_type = plan_type
   if (school_year !== undefined) payload.school_year = school_year
   if (semester !== undefined) payload.semester = semester
   if (is_active !== undefined) payload.is_active = is_active
