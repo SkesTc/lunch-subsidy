@@ -96,11 +96,11 @@ const html = `<!DOCTYPE html>
 
 <!-- 封面 -->
 <div class="cover">
-  <div class="cover-icon">⚙️</div>
-  <div class="cover-title">臺中市第2區<br>午餐經費核銷系統</div>
-  <div class="cover-subtitle">後台管理者操作使用說明書</div>
-  <div class="cover-badge"><span class="cover-dot"></span>115 學年度・承辦學校專用</div>
-  <div class="cover-footer">本說明書適用對象：承辦學校系統管理人員</div>
+  <div class="cover-icon">🏢</div>
+  <div class="cover-title">臺中市午餐經費核銷系統<br>區管理者操作使用說明</div>
+  <div class="cover-subtitle">區別管理後台・各校核銷管理</div>
+  <div class="cover-badge"><span class="cover-dot"></span>115 學年度・區管理者專用</div>
+  <div class="cover-footer">本說明書適用對象：各區別承辦學校管理人員（zone_admin）</div>
 </div>
 
 <!-- 目錄 -->
@@ -110,7 +110,7 @@ const html = `<!DOCTYPE html>
   <div class="toc-section">基本操作</div>
   <div class="toc-item"><span class="toc-num">一</span><span class="toc-label">登入與後台進入方式</span><span class="toc-dots"></span><span class="toc-page-num">3</span></div>
   <div class="toc-item"><span class="toc-num">二</span><span class="toc-label">後台分頁結構總覽</span><span class="toc-dots"></span><span class="toc-page-num">4</span></div>
-  <div class="toc-item"><span class="toc-num">三</span><span class="toc-label">系統設定（基本設定 / 學年度管理）</span><span class="toc-dots"></span><span class="toc-page-num">5</span></div>
+  <div class="toc-item"><span class="toc-num">三</span><span class="toc-label">區別設定：聯絡人資訊</span><span class="toc-dots"></span><span class="toc-page-num">5</span></div>
 
   <div class="toc-section">核銷管理</div>
   <div class="toc-item"><span class="toc-num">四</span><span class="toc-label">核銷計畫管理</span><span class="toc-dots"></span><span class="toc-page-num">6</span></div>
@@ -131,7 +131,9 @@ const html = `<!DOCTYPE html>
 <div class="page">
   <div class="page-header"><div class="page-step">一</div><div class="page-title">登入與後台進入方式</div></div>
 
-  <p class="desc">後台管理功能僅限具管理員權限的帳號使用。請使用學校承辦的 Google 帳號登入系統，登入後依以下步驟進入後台。</p>
+  <p class="desc">區管理者（zone_admin）是負責管理所屬區別核銷業務的後台帳號。請使用已指派為區管理者的 Google 帳號登入，系統自動依帳號角色開放對應功能。</p>
+
+  <div class="tip">💡 <strong>與超級使用者的差異：</strong>區管理者只能查看與管理<strong>本區別</strong>的學校資料、核銷計畫與申請審核，無法跨區操作，也沒有「新增/停用區別」的功能。</div>
 
   <div class="section-title">進入後台步驟</div>
   <div class="steps">
@@ -158,7 +160,7 @@ const html = `<!DOCTYPE html>
 
   <div class="tip">💡 如需新增管理員帳號，請至「帳號管理 → 系統管理帳號」，填入對方 Gmail 後點「新增管理員」。</div>
 
-  <div class="page-footer"><span>臺中市第2區免費營養午餐核銷系統 · 後台管理者使用說明</span><span>第 3 頁</span></div>
+  <div class="page-footer"><span>臺中市午餐核銷系統 · 區管理者使用說明</span><span>第 3 頁</span></div>
 </div>
 
 <!-- ══ 第2頁：分頁結構總覽 ══ -->
@@ -196,41 +198,49 @@ const html = `<!DOCTYPE html>
 
   <div class="tip">💡 <strong>核銷管理</strong>是新設計的整合分頁，將核銷計畫、期程設定、核定金額、通知信集中管理，進入後台時預設開啟「核銷計畫管理」子分頁。</div>
 
-  <div class="page-footer"><span>臺中市第2區免費營養午餐核銷系統 · 後台管理者使用說明</span><span>第 4 頁</span></div>
+  <div class="page-footer"><span>臺中市午餐核銷系統 · 區管理者使用說明</span><span>第 4 頁</span></div>
 </div>
 
-<!-- ══ 第3頁：系統設定 ══ -->
+<!-- ══ 第3頁：區別設定 ══ -->
 <div class="page">
-  <div class="page-header"><div class="page-step">三</div><div class="page-title">系統設定</div></div>
+  <div class="page-header"><div class="page-step">三</div><div class="page-title">區別設定：聯絡人資訊</div></div>
 
-  <p class="desc">路徑：後台 → <strong>系統設定</strong>。分為「基本設定」與「學年度管理」兩個子分頁。</p>
+  <p class="desc">路徑：後台 → <strong>區別管理 → 區別設定</strong>（右側欄位）。區管理者可設定本區別顯示於前台（登入頁底部）的聯絡人資訊。</p>
 
-  <div class="section-title">① 基本設定</div>
+  <div class="section-title">設定步驟</div>
+  <div class="steps">
+    <div class="step-item"><div class="step-num">1</div><div class="step-text">進入後台，點頂部導覽「<strong>區別管理</strong>」</div></div>
+    <div class="step-item"><div class="step-num">2</div><div class="step-text">左側顯示本區別名稱，點選後右側出現「<strong>區別設定</strong>」表單</div></div>
+    <div class="step-item"><div class="step-num">3</div><div class="step-text">依需要選擇計畫（若有多個計畫），填入聯絡人姓名、職稱、電話</div></div>
+    <div class="step-item"><div class="step-num">4</div><div class="step-text">點「<strong>儲存設定</strong>」，前台即時更新</div></div>
+  </div>
+
+  <div class="section-title">可設定的欄位</div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th style="width:30%">欄位</th><th>說明</th></tr></thead>
+      <thead><tr><th style="width:30%">欄位</th><th>說明</th><th style="width:28%">顯示位置</th></tr></thead>
       <tbody>
-        <tr><td><strong>系統名稱</strong></td><td>顯示於導覽列、登入頁及瀏覽器標題</td></tr>
-        <tr><td><strong>承辦學校</strong></td><td>顯示於登入頁下方；同時作為全區收支結算表抬頭</td></tr>
-        <tr><td><strong>承辦人姓名／職稱／電話</strong></td><td>顯示於登入頁及審核通知信（{adminName}、{adminPhone} 等變數）</td></tr>
-        <tr><td><strong>學校端使用說明連結</strong></td><td>學校端導覽列顯示「📄 使用說明」下載按鈕</td></tr>
-        <tr><td><strong>Google Drive 資料夾 ID</strong></td><td>掃描檔與憑單的雲端儲存位置</td></tr>
-        <tr><td><strong>GAS 網址／驗證金鑰</strong></td><td>Google Apps Script 部署網址及密鑰（上傳、刪除、寄信共用）</td></tr>
+        <tr><td><strong>聯絡人姓名</strong></td><td>區別承辦人姓名</td><td>前台登入頁底部、審核通知信</td></tr>
+        <tr><td><strong>聯絡人職稱</strong></td><td>區別承辦人職稱</td><td>前台登入頁底部、審核通知信</td></tr>
+        <tr><td><strong>聯絡電話</strong></td><td>區別聯絡電話</td><td>前台登入頁底部、審核通知信</td></tr>
+        <tr><td><strong>計畫截止說明</strong></td><td>各計畫操作截止日期說明文字</td><td>學校端操作卡底部說明</td></tr>
       </tbody>
     </table>
   </div>
 
-  <div class="section-title">② 學年度管理</div>
+  <div class="tip">💡 聯絡人資訊的優先順序：區別設定的聯絡人 &gt; 系統設定的全域承辦人。請確認此處已正確填入，前台學校才能看到正確的聯絡資訊。</div>
+
+  <div class="section-title">系統設定（基本設定 / 學年度管理）</div>
+  <p class="desc">路徑：後台 → <strong>系統設定</strong>。包含系統名稱、GAS 連線設定及學年度管理：</p>
   <div class="steps">
-    <div class="step-item"><div class="step-num">1</div><div class="step-text"><strong>新增學年度：</strong>在「新增學年度」欄輸入三位數學年（例：116），點「新增並切換」，系統立即切換至新學年度</div></div>
-    <div class="step-item"><div class="step-num">2</div><div class="step-text"><strong>切換學年度：</strong>點列表中「切換」按鈕可切換至任意學年度查閱歷史資料，頁面重新整理後生效</div></div>
-    <div class="step-item"><div class="step-num">3</div><div class="step-text"><strong>📥 備份：</strong>匯出該學年度所有資料（學校清單含核定金額、帳戶資料、核銷紀錄、帳號清單）為 Excel 檔；核銷紀錄的結餘款與應繳回金額均為動態計算的正確值</div></div>
-    <div class="step-item"><div class="step-num">4</div><div class="step-text"><strong>🗑 清審核：</strong>清除該學年度所有審核紀錄（帳戶變更申請、上傳申請）；操作前需二次確認，不可復原</div></div>
+    <div class="step-item"><div class="step-num">▸</div><div class="step-text"><strong>新增/切換學年度：</strong>「系統設定 → 學年度管理」輸入學年後點「新增並切換」</div></div>
+    <div class="step-item"><div class="step-num">▸</div><div class="step-text"><strong>📥 備份：</strong>匯出該學年所有資料（學校、核定金額、核銷紀錄、帳號）為 Excel</div></div>
+    <div class="step-item"><div class="step-num">▸</div><div class="step-text"><strong>🗑 清審核：</strong>清除所有審核紀錄（不可復原，操作前需二次確認）</div></div>
   </div>
 
-  <div class="warn">⚠️ 新學年度開始前，請確認已至「核銷管理 → 核銷計畫管理」建立新學年度的核銷計畫，並在「核定金額管理」批次匯入各校新學年的核定金額。</div>
+  <div class="warn">⚠️ 新學年度開始前，請先建立新年度計畫（核銷計畫管理），再批次匯入各校核定金額（核定金額管理）。</div>
 
-  <div class="page-footer"><span>臺中市第2區免費營養午餐核銷系統 · 後台管理者使用說明</span><span>第 5 頁</span></div>
+  <div class="page-footer"><span>臺中市午餐核銷系統 · 區管理者使用說明</span><span>第 5 頁</span></div>
 </div>
 
 <!-- ══ 第4頁：核銷計畫管理 ══ -->
@@ -270,7 +280,7 @@ const html = `<!DOCTYPE html>
     <div class="step-item"><div class="step-num">▸</div><div class="step-text">後台總覽及匯出報表第1學期也不顯示送款憑單欄</div></div>
   </div>
 
-  <div class="page-footer"><span>臺中市第2區免費營養午餐核銷系統 · 後台管理者使用說明</span><span>第 6 頁</span></div>
+  <div class="page-footer"><span>臺中市午餐核銷系統 · 區管理者使用說明</span><span>第 6 頁</span></div>
 </div>
 
 <!-- ══ 第5頁：期程/金額/通知 ══ -->
@@ -312,7 +322,7 @@ const html = `<!DOCTYPE html>
   </div>
   <p class="desc" style="margin-top:6px;">可用變數：<code>{schoolName}</code> <code>{contactName}</code> <code>{contactTitle}</code> <code>{semLabel}</code>（含計畫名，例：免費午餐・第1學期）<code>{planLabel}</code>（計畫名）<code>{typeLabel}</code> <code>{actionNote}</code> <code>{adminNote}</code> <code>{adminName}</code> <code>{adminPhone}</code></p>
 
-  <div class="page-footer"><span>臺中市第2區免費營養午餐核銷系統 · 後台管理者使用說明</span><span>第 7 頁</span></div>
+  <div class="page-footer"><span>臺中市午餐核銷系統 · 區管理者使用說明</span><span>第 7 頁</span></div>
 </div>
 
 <!-- ══ 第6頁：學校管理 ══ -->
@@ -348,7 +358,7 @@ const html = `<!DOCTYPE html>
     <div class="step-item"><div class="step-num">3</div><div class="step-text">匯入結果顯示更新筆數及錯誤訊息（若有找不到學校編號則跳過）</div></div>
   </div>
 
-  <div class="page-footer"><span>臺中市第2區免費營養午餐核銷系統 · 後台管理者使用說明</span><span>第 8 頁</span></div>
+  <div class="page-footer"><span>臺中市午餐核銷系統 · 區管理者使用說明</span><span>第 8 頁</span></div>
 </div>
 
 <!-- ══ 第7頁：帳號管理 ══ -->
@@ -387,7 +397,7 @@ const html = `<!DOCTYPE html>
   </div>
   <div class="tip">💡 模擬狀態以 Cookie 儲存，有效期 8 小時；不影響實際資料，關閉分頁後仍可點「結束模擬」清除。</div>
 
-  <div class="page-footer"><span>臺中市第2區免費營養午餐核銷系統 · 後台管理者使用說明</span><span>第 9 頁</span></div>
+  <div class="page-footer"><span>臺中市午餐核銷系統 · 區管理者使用說明</span><span>第 9 頁</span></div>
 </div>
 
 <!-- ══ 第8頁：申請審核 ══ -->
@@ -436,7 +446,7 @@ const html = `<!DOCTYPE html>
 
   <div class="tip">💡 <strong>拒絕「重新上傳」申請</strong>時，學校提交的新檔案及<strong>原本已核准的舊檔案</strong>都會被刪除，學校需重新從頭上傳。請確認後再執行拒絕。</div>
 
-  <div class="page-footer"><span>臺中市第2區免費營養午餐核銷系統 · 後台管理者使用說明</span><span>第 10 頁</span></div>
+  <div class="page-footer"><span>臺中市午餐核銷系統 · 區管理者使用說明</span><span>第 10 頁</span></div>
 </div>
 
 <!-- ══ 第9頁：總覽 ══ -->
@@ -488,7 +498,7 @@ const html = `<!DOCTYPE html>
   ・<strong>非臺灣銀行</strong> — 匯出其他銀行的學校<br>
   匯出欄位：編號、區別、學校名稱、銀行名稱、帳戶名稱、局號、帳號、匯款金額</div>
 
-  <div class="page-footer"><span>臺中市第2區免費營養午餐核銷系統 · 後台管理者使用說明</span><span>第 11 頁</span></div>
+  <div class="page-footer"><span>臺中市午餐核銷系統 · 區管理者使用說明</span><span>第 11 頁</span></div>
 </div>
 
 <!-- ══ 第10頁：催收通知 ══ -->
@@ -522,7 +532,7 @@ const html = `<!DOCTYPE html>
 
   <div class="tip">💡 若勾選全區學校後點催收通知，系統只寄給有帳號綁定（已有學校承辦人 Email）的學校，未綁定的學校自動略過。</div>
 
-  <div class="page-footer"><span>臺中市第2區免費營養午餐核銷系統 · 後台管理者使用說明</span><span>第 12 頁</span></div>
+  <div class="page-footer"><span>臺中市午餐核銷系統 · 區管理者使用說明</span><span>第 12 頁</span></div>
 </div>
 
 <!-- ══ 附錄：Q&A ══ -->
@@ -580,7 +590,7 @@ const html = `<!DOCTYPE html>
   </div>
 
   <div style="text-align:center;margin-top:24px;font-size:11px;color:#94a3b8;">
-    臺中市第2區免費營養午餐核銷系統 · 後台管理者使用說明 · 115 學年度
+    臺中市午餐核銷系統 · 區管理者使用說明 · 115 學年度
   </div>
 </div>
 
@@ -603,6 +613,7 @@ const pdfBuffer = await page.pdf({
 
 await browser.close()
 
-const outPath = path.join(__dirname, '後台管理者使用說明.pdf')
+const outPath = path.join(__dirname, '區管理者使用說明.pdf')
 writeFileSync(outPath, pdfBuffer)
+console.log('✅ 區管理者使用說明.pdf 已產生')
 console.log('✅ PDF 產生完成：' + outPath)
